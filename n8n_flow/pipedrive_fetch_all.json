@@ -1,5 +1,5 @@
 {
-  "name": "Pipedrive - Fetch All Data",
+  "name": "Pipedrive - Конверсія угод у воронці",
   "nodes": [
     {
       "parameters": {},
@@ -11,122 +11,114 @@
     },
     {
       "parameters": {
-        "resource": "deal",
-        "operation": "getAll",
-        "returnAll": true
-      },
-      "id": "pipedrive-deals-001",
-      "name": "Get Deals",
-      "type": "n8n-nodes-base.pipedrive",
-      "typeVersion": 1,
-      "position": [480, 400],
-      "credentials": {
-        "pipedriveApi": {
-          "id": "",
-          "name": "WP_Pipedrive account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "url": "https://api.pipedrive.com/v1/users",
+        "method": "POST",
+        "url": "https://api.pipedrive.com/v1/filters",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            {
-              "name": "api_token",
-              "value": "1985d3b7ffcc266add8f005be68caf8ff8ec605f"
-            }
+            { "name": "api_token", "value": "1985d3b7ffcc266add8f005be68caf8ff8ec605f" }
           ]
         },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"name\": \"n8n_temp_conversion_report\",\n  \"type\": \"deals\",\n  \"conditions\": {\n    \"glue\": \"and\",\n    \"conditions\": [\n      {\n        \"glue\": \"and\",\n        \"conditions\": [\n          {\"object\": \"deal\", \"field_id\": 12460, \"operator\": \"=\", \"value\": 2, \"extra_value\": null},\n          {\"object\": \"deal\", \"field_id\": 12465, \"operator\": \">=\", \"value\": \"2026-01-01\", \"extra_value\": null},\n          {\"object\": \"deal\", \"field_id\": 12465, \"operator\": \"<=\", \"value\": \"2026-12-31\", \"extra_value\": null}\n        ]\n      },\n      {\n        \"glue\": \"or\",\n        \"conditions\": [\n          {\"object\": \"deal\", \"field_id\": 12455, \"operator\": \"=\", \"value\": 18752499, \"extra_value\": null},\n          {\"object\": \"deal\", \"field_id\": 12455, \"operator\": \"=\", \"value\": 22953971, \"extra_value\": null},\n          {\"object\": \"deal\", \"field_id\": 12455, \"operator\": \"=\", \"value\": 15621822, \"extra_value\": null},\n          {\"object\": \"deal\", \"field_id\": 12455, \"operator\": \"=\", \"value\": 22023250, \"extra_value\": null},\n          {\"object\": \"deal\", \"field_id\": 12455, \"operator\": \"=\", \"value\": 15788989, \"extra_value\": null},\n          {\"object\": \"deal\", \"field_id\": 12455, \"operator\": \"=\", \"value\": 24012413, \"extra_value\": null}\n        ]\n      }\n    ]\n  }\n}",
         "options": {}
       },
-      "id": "http-users-001",
-      "name": "Get Users",
+      "id": "create-filter-001",
+      "name": "Create Filter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://api.pipedrive.com/v1/deals",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "api_token", "value": "1985d3b7ffcc266add8f005be68caf8ff8ec605f" },
+            { "name": "filter_id", "value": "={{ $json.data.id }}" },
+            { "name": "limit", "value": "500" },
+            { "name": "start", "value": "0" }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "responseContainsNextURL",
+              "nextURL": "={{ $response.body.additional_data.pagination.more_items_in_collection ? 'https://api.pipedrive.com/v1/deals?api_token=1985d3b7ffcc266add8f005be68caf8ff8ec605f&filter_id=' + $request.qs.filter_id + '&limit=500&start=' + $response.body.additional_data.pagination.next_start : '' }}",
+              "limitPagesFetched": true,
+              "maxPages": 20
+            }
+          },
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "get-deals-001",
+      "name": "Get Filtered Deals",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [720, 400]
     },
     {
       "parameters": {
-        "resource": "organization",
-        "operation": "getAll",
-        "returnAll": true
+        "jsCode": "// Собираем все сделки из всех страниц пагинации\nconst allItems = $('Get Filtered Deals').all();\nconst allDeals = [];\n\nfor (const item of allItems) {\n  const data = item.json.data;\n  if (Array.isArray(data)) {\n    allDeals.push(...data);\n  }\n}\n\n// Группируем по владельцу\nconst byOwner = {};\n\nfor (const deal of allDeals) {\n  const ownerName = deal.owner_name || deal.user_id?.name || 'Unknown';\n  const ownerId = deal.user_id?.id || deal.creator_user_id?.id || 0;\n\n  if (!byOwner[ownerName]) {\n    byOwner[ownerName] = {\n      owner_id: ownerId,\n      owner_name: ownerName,\n      total: 0,\n      won: 0,\n      lost: 0,\n      open: 0,\n      won_value: 0,\n      lost_value: 0,\n      open_value: 0\n    };\n  }\n\n  const o = byOwner[ownerName];\n  o.total++;\n\n  const value = deal.value || 0;\n  if (deal.status === 'won') {\n    o.won++;\n    o.won_value += value;\n  } else if (deal.status === 'lost') {\n    o.lost++;\n    o.lost_value += value;\n  } else if (deal.status === 'open') {\n    o.open++;\n    o.open_value += value;\n  }\n}\n\n// Считаем конверсию\nconst report = Object.values(byOwner).map(o => ({\n  ...o,\n  conversion_rate: o.total > 0 ? Math.round((o.won / o.total) * 10000) / 100 : 0,\n  loss_rate: o.total > 0 ? Math.round((o.lost / o.total) * 10000) / 100 : 0\n}));\n\n// Итого\nconst totals = report.reduce((acc, o) => {\n  acc.total += o.total;\n  acc.won += o.won;\n  acc.lost += o.lost;\n  acc.open += o.open;\n  acc.won_value += o.won_value;\n  acc.lost_value += o.lost_value;\n  acc.open_value += o.open_value;\n  return acc;\n}, { total: 0, won: 0, lost: 0, open: 0, won_value: 0, lost_value: 0, open_value: 0 });\n\ntotals.conversion_rate = totals.total > 0 ? Math.round((totals.won / totals.total) * 10000) / 100 : 0;\ntotals.loss_rate = totals.total > 0 ? Math.round((totals.lost / totals.total) * 10000) / 100 : 0;\n\nreturn [{\n  json: {\n    report_name: 'Конверсія угод у воронці \"Теплі ліди\"',\n    period: '01/01/2026 - 12/31/2026',\n    generated_at: new Date().toISOString(),\n    totals: totals,\n    by_owner: report.sort((a, b) => b.total - a.total)\n  }\n}];"
       },
-      "id": "pipedrive-orgs-001",
-      "name": "Get Organizations",
-      "type": "n8n-nodes-base.pipedrive",
-      "typeVersion": 1,
-      "position": [960, 400],
-      "credentials": {
-        "pipedriveApi": {
-          "id": "",
-          "name": "WP_Pipedrive account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "resource": "activity",
-        "operation": "getAll",
-        "returnAll": true
-      },
-      "id": "pipedrive-activities-001",
-      "name": "Get Activities",
-      "type": "n8n-nodes-base.pipedrive",
-      "typeVersion": 1,
-      "position": [1200, 400],
-      "credentials": {
-        "pipedriveApi": {
-          "id": "",
-          "name": "WP_Pipedrive account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "const deals = $('Get Deals').all();\nconst usersResponse = $('Get Users').all();\nconst orgs = $('Get Organizations').all();\nconst activities = $('Get Activities').all();\n\nconst users = usersResponse[0]?.json?.data || [];\n\nreturn [{\n  json: {\n    summary: {\n      deals_count: deals.length,\n      users_count: users.length,\n      organizations_count: orgs.length,\n      activities_count: activities.length,\n      fetched_at: new Date().toISOString()\n    },\n    deals: deals.map(i => i.json),\n    users: users,\n    organizations: orgs.map(i => i.json),\n    activities: activities.map(i => i.json)\n  }\n}];"
-      },
-      "id": "code-summary-001",
-      "name": "Build Summary",
+      "id": "report-001",
+      "name": "Build Report",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1440, 400]
+      "position": [960, 400]
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ 'https://api.pipedrive.com/v1/filters/' + $('Create Filter').first().json.data.id }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "api_token", "value": "1985d3b7ffcc266add8f005be68caf8ff8ec605f" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "delete-filter-001",
+      "name": "Delete Filter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 400]
     }
   ],
   "connections": {
     "Manual Trigger": {
       "main": [
         [
-          { "node": "Get Deals", "type": "main", "index": 0 }
+          { "node": "Create Filter", "type": "main", "index": 0 }
         ]
       ]
     },
-    "Get Deals": {
+    "Create Filter": {
       "main": [
         [
-          { "node": "Get Users", "type": "main", "index": 0 }
+          { "node": "Get Filtered Deals", "type": "main", "index": 0 }
         ]
       ]
     },
-    "Get Users": {
+    "Get Filtered Deals": {
       "main": [
         [
-          { "node": "Get Organizations", "type": "main", "index": 0 }
+          { "node": "Build Report", "type": "main", "index": 0 }
         ]
       ]
     },
-    "Get Organizations": {
+    "Build Report": {
       "main": [
         [
-          { "node": "Get Activities", "type": "main", "index": 0 }
-        ]
-      ]
-    },
-    "Get Activities": {
-      "main": [
-        [
-          { "node": "Build Summary", "type": "main", "index": 0 }
+          { "node": "Delete Filter", "type": "main", "index": 0 }
         ]
       ]
     }
