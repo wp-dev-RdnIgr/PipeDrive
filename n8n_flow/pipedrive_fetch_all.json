@@ -2,11 +2,15 @@
   "name": "Pipedrive - Конверсія угод у воронці",
   "nodes": [
     {
-      "parameters": {},
+      "parameters": {
+        "rule": {
+          "interval": [{}]
+        }
+      },
       "id": "trigger-001",
-      "name": "Manual Trigger",
-      "type": "n8n-nodes-base.manualTrigger",
-      "typeVersion": 1,
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
       "position": [240, 400]
     },
     {
@@ -42,21 +46,7 @@
             { "name": "start", "value": "0" }
           ]
         },
-        "options": {
-          "pagination": {
-            "pagination": {
-              "paginationMode": "responseContainsNextURL",
-              "nextURL": "={{ $response.body.additional_data.pagination.more_items_in_collection ? 'https://api.pipedrive.com/v1/deals?api_token=1985d3b7ffcc266add8f005be68caf8ff8ec605f&filter_id=' + $request.qs.filter_id + '&limit=500&start=' + $response.body.additional_data.pagination.next_start : '' }}",
-              "limitPagesFetched": true,
-              "maxPages": 20
-            }
-          },
-          "response": {
-            "response": {
-              "responseFormat": "json"
-            }
-          }
-        }
+        "options": {}
       },
       "id": "get-deals-001",
       "name": "Get Filtered Deals",
@@ -94,7 +84,7 @@
     }
   ],
   "connections": {
-    "Manual Trigger": {
+    "Schedule Trigger": {
       "main": [
         [
           { "node": "Create Filter", "type": "main", "index": 0 }
@@ -124,6 +114,7 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "availableInMCP": true
   }
 }
