@@ -29,21 +29,23 @@
     },
     {
       "parameters": {
-        "resource": "person",
-        "operation": "getAll",
-        "returnAll": true
+        "url": "https://api.pipedrive.com/v1/users",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "api_token",
+              "value": "1985d3b7ffcc266add8f005be68caf8ff8ec605f"
+            }
+          ]
+        },
+        "options": {}
       },
-      "id": "pipedrive-persons-001",
-      "name": "Get Persons",
-      "type": "n8n-nodes-base.pipedrive",
-      "typeVersion": 1,
-      "position": [720, 400],
-      "credentials": {
-        "pipedriveApi": {
-          "id": "",
-          "name": "WP_Pipedrive account"
-        }
-      }
+      "id": "http-users-001",
+      "name": "Get Users",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 400]
     },
     {
       "parameters": {
@@ -83,7 +85,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const deals = $('Get Deals').all();\nconst persons = $('Get Persons').all();\nconst orgs = $('Get Organizations').all();\nconst activities = $('Get Activities').all();\n\nreturn [{\n  json: {\n    summary: {\n      deals_count: deals.length,\n      persons_count: persons.length,\n      organizations_count: orgs.length,\n      activities_count: activities.length,\n      fetched_at: new Date().toISOString()\n    },\n    deals: deals.map(i => i.json),\n    persons: persons.map(i => i.json),\n    organizations: orgs.map(i => i.json),\n    activities: activities.map(i => i.json)\n  }\n}];"
+        "jsCode": "const deals = $('Get Deals').all();\nconst usersResponse = $('Get Users').all();\nconst orgs = $('Get Organizations').all();\nconst activities = $('Get Activities').all();\n\nconst users = usersResponse[0]?.json?.data || [];\n\nreturn [{\n  json: {\n    summary: {\n      deals_count: deals.length,\n      users_count: users.length,\n      organizations_count: orgs.length,\n      activities_count: activities.length,\n      fetched_at: new Date().toISOString()\n    },\n    deals: deals.map(i => i.json),\n    users: users,\n    organizations: orgs.map(i => i.json),\n    activities: activities.map(i => i.json)\n  }\n}];"
       },
       "id": "code-summary-001",
       "name": "Build Summary",
@@ -103,11 +105,11 @@
     "Get Deals": {
       "main": [
         [
-          { "node": "Get Persons", "type": "main", "index": 0 }
+          { "node": "Get Users", "type": "main", "index": 0 }
         ]
       ]
     },
-    "Get Persons": {
+    "Get Users": {
       "main": [
         [
           { "node": "Get Organizations", "type": "main", "index": 0 }
