@@ -34,12 +34,15 @@ function refreshData(dateFrom, dateTo) {
     var result = callN8n_({action:'report', conditions:conditions, groupBy:'none'});
     if (result.error) return {error: result.error};
 
-    // Save deals
-    var dealCols = ['id','title','owner_name','pipeline_id','stage_id','status','value','currency',
-      'add_time','won_time','lost_time','label','lost_reason','site','utm_medium','utm_campaign',
-      'utm_source','page','quality','source_form','kp_link','kp_specialist','comment','loss_comment',
-      'product_name','processed'];
-    writeSheet_(ss, 'Deals', result.deals, dealCols);
+    // Save deals — all fields
+    if (result.deals && result.deals.length) {
+      var allKeys = Object.keys(result.deals[0]);
+      writeSheet_(ss, 'Deals', result.deals, allKeys);
+    } else {
+      var dealsSheet = getOrCreateSheet_(ss, 'Deals');
+      dealsSheet.clear();
+      dealsSheet.getRange(1,1).setValue('Немає угод за цей період');
+    }
 
     // 3. Save refresh timestamp
     var infoSheet = getOrCreateSheet_(ss, 'Info');
@@ -63,7 +66,12 @@ function writeSheet_(ss, name, data, cols) {
   var headers = cols || Object.keys(data[0]);
   var rows = [headers];
   data.forEach(function(item) {
-    rows.push(headers.map(function(h) { return item[h] !== undefined ? item[h] : ''; }));
+    rows.push(headers.map(function(h) {
+      var v = item[h];
+      if (v === null || v === undefined) return '';
+      if (typeof v === 'object') return JSON.stringify(v);
+      return v;
+    }));
   });
   sheet.getRange(1, 1, rows.length, headers.length).setValues(rows);
 }

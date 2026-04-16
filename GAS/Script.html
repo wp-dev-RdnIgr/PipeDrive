@@ -42,19 +42,11 @@ function initPresets(){
     document.getElementById('filter-rows').innerHTML='';
     document.getElementById('count-bar').style.display='block';
     document.getElementById('count-bar').textContent=pr.description||'';
+    // Show ALL filters as rows
     if(pr.andConditions)pr.andConditions.forEach(function(f){addFilterRowWithData(f);});
+    if(pr.orConditions)pr.orConditions.forEach(function(f){addFilterRowWithData(f);});
     if(pr.filters)pr.filters.forEach(function(f){addFilterRowWithData(f);});
     window._presetOrConditions=pr.orConditions||[];
-    if(pr.orConditions&&pr.orConditions.length){
-      var orDiv=document.createElement('div');orDiv.className='filter-row';orDiv.style.background='#f0f7ff';orDiv.style.padding='8px';orDiv.style.borderRadius='4px';
-      var fld=fields.find(function(f){return f.field_id===pr.orConditions[0].field_id;});
-      var labels=pr.orConditions.map(function(c){
-        if(fld&&fld.field_id===12462){var allS=[];for(var p in stages)(stages[p]||[]).forEach(function(s){if(s.id==c.value)allS.push(s.name);});return allS[0]||c.value;}
-        return c.value;
-      });
-      orDiv.innerHTML='<span style="color:#1a5276"><b>АБО:</b> '+(fld?fld.label:'')+'='+labels.join(', ')+'</span>';
-      document.getElementById('filter-rows').appendChild(orDiv);
-    }
   };
 }
 
