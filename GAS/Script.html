@@ -1,0 +1,250 @@
+<script>
+var fields=[],pipelines=[],users=[],stages={},opLabels={},presets=[],lastData=null,sortCol=null,sortDir='asc';
+
+document.addEventListener('DOMContentLoaded',function(){
+  google.script.run.withSuccessHandler(function(f){fields=f;initReady();}).getFieldsConfig();
+  google.script.run.withSuccessHandler(function(p){pipelines=p;}).getPipelinesConfig();
+  google.script.run.withSuccessHandler(function(u){users=u;}).getUsersConfig();
+  google.script.run.withSuccessHandler(function(s){stages=s;}).getAllStages();
+  google.script.run.withSuccessHandler(function(o){opLabels=o;}).getOperatorsLabels();
+  google.script.run.withSuccessHandler(function(p){presets=p;initPresets();}).getPresetReports();
+});
+
+function initReady(){addFilterRow();}
+
+function initPresets(){
+  var sel=document.getElementById('preset-select');
+  presets.forEach(function(p){var o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o);});
+  sel.onchange=function(){
+    if(!this.value)return;
+    var pr=presets.find(function(p){return p.id===sel.value;});
+    if(!pr)return;
+    document.getElementById('filter-rows').innerHTML='';
+    pr.filters.forEach(function(f){addFilterRowWithData(f);});
+  };
+}
+
+function addFilterRow(){
+  var div=document.createElement('div');div.className='filter-row';
+  var fs=document.createElement('select');fs.className='field-select';
+  var def=document.createElement('option');def.value='';def.textContent='— Оберіть поле —';fs.appendChild(def);
+  fields.forEach(function(f){var o=document.createElement('option');o.value=f.field_id;o.textContent=f.label;fs.appendChild(o);});
+  var os=document.createElement('select');os.className='operator-select';os.disabled=true;
+  var vc=document.createElement('div');vc.className='value-container';
+  var rb=document.createElement('button');rb.className='btn-remove';rb.innerHTML='&times;';rb.onclick=function(){div.remove();};
+  fs.onchange=function(){onFieldChange(div,fs,os,vc);};
+  div.appendChild(fs);div.appendChild(os);div.appendChild(vc);div.appendChild(rb);
+  document.getElementById('filter-rows').appendChild(div);
+}
+
+function addFilterRowWithData(data){
+  addFilterRow();
+  var rows=document.querySelectorAll('.filter-row');
+  var row=rows[rows.length-1];
+  var fs=row.querySelector('.field-select');
+  fs.value=data.field_id;
+  fs.onchange();
+  var os=row.querySelector('.operator-select');
+  os.value=data.operator;
+  os.onchange();
+  var vc=row.querySelector('.value-container');
+  var inp=vc.querySelector('select,input');
+  if(inp)inp.value=data.value;
+}
+
+function onFieldChange(row,fs,os,vc){
+  var fid=parseInt(fs.value);var field=fields.find(function(f){return f.field_id===fid;});
+  os.innerHTML='';os.disabled=false;vc.innerHTML='';
+  if(!field){os.disabled=true;return;}
+  field.operators.forEach(function(op){var o=document.createElement('option');o.value=op;o.textContent=opLabels[op]||op;os.appendChild(o);});
+  os.onchange=function(){renderValue(field,os.value,vc);};
+  renderValue(field,field.operators[0],vc);
+}
+
+function renderValue(field,op,vc){
+  vc.innerHTML='';
+  if(op==='IS NULL'||op==='IS NOT NULL')return;
+  var t=field.type;
+  if(t==='date'){
+    var d1=document.createElement('input');d1.type='date';d1.className='date-from';
+    var d2=document.createElement('input');d2.type='date';d2.className='date-to';
+    vc.appendChild(d1);vc.appendChild(d2);return;
+  }
+  if(field.options&&field.options.length){
+    var sel=document.createElement('select');
+    field.options.forEach(function(o){var opt=document.createElement('option');opt.value=o.id;opt.textContent=o.label;sel.appendChild(opt);});
+    vc.appendChild(sel);return;
+  }
+  if(t==='pipeline'){
+    var sel=document.createElement('select');
+    pipelines.forEach(function(p){var o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o);});
+    vc.appendChild(sel);return;
+  }
+  if(t==='stage'){
+    var sel=document.createElement('select');
+    var pFilter=getPipelineFromFilters();
+    if(pFilter){
+      (stages[pFilter]||[]).forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name;sel.appendChild(o);});
+    }else{
+      pipelines.forEach(function(p){
+        var og=document.createElement('optgroup');og.label=p.name;
+        (stages[p.id]||[]).forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name;og.appendChild(o);});
+        sel.appendChild(og);
+      });
+    }
+    vc.appendChild(sel);return;
+  }
+  if(t==='user'){
+    var sel=document.createElement('select');
+    var ag=document.createElement('optgroup');ag.label='Активні';
+    var ig=document.createElement('optgroup');ig.label='Неактивні';
+    users.forEach(function(u){var o=document.createElement('option');o.value=u.id;o.textContent=u.name;(u.active?ag:ig).appendChild(o);});
+    sel.appendChild(ag);sel.appendChild(ig);vc.appendChild(sel);return;
+  }
+  if(t==='int'||t==='monetary'||t==='double'){
+    var inp=document.createElement('input');inp.type='number';vc.appendChild(inp);return;
+  }
+  var inp=document.createElement('input');inp.type='text';inp.placeholder='Введіть значення...';vc.appendChild(inp);
+}
+
+function getPipelineFromFilters(){
+  var rows=document.querySelectorAll('.filter-row');
+  for(var i=0;i<rows.length;i++){
+    var fs=rows[i].querySelector('.field-select');
+    if(parseInt(fs.value)===12460){
+      var v=rows[i].querySelector('.value-container select');
+      if(v)return parseInt(v.value);
+    }
+  }
+  return null;
+}
+
+function collectConditions(){
+  var conds=[],rows=document.querySelectorAll('.filter-row');
+  for(var i=0;i<rows.length;i++){
+    var fs=rows[i].querySelector('.field-select');
+    var os=rows[i].querySelector('.operator-select');
+    if(!fs.value)continue;
+    var fid=parseInt(fs.value);var op=os.value;var field=fields.find(function(f){return f.field_id===fid;});
+    if(op==='IS NULL'||op==='IS NOT NULL'){conds.push({field_id:fid,operator:op,value:'',extra_value:null});continue;}
+    if(field&&field.type==='date'){
+      var d1=rows[i].querySelector('.date-from');var d2=rows[i].querySelector('.date-to');
+      if(d1&&d1.value)conds.push({field_id:fid,operator:'>=',value:d1.value,extra_value:null});
+      if(d2&&d2.value)conds.push({field_id:fid,operator:'<=',value:d2.value,extra_value:null});
+      continue;
+    }
+    var inp=rows[i].querySelector('.value-container select, .value-container input');
+    if(inp&&inp.value)conds.push({field_id:fid,operator:op,value:inp.value,extra_value:null});
+  }
+  if(conds.length>16){showError('Максимум 16 умов фільтрації');return null;}
+  if(conds.length===0){showError('Додайте хоча б одну умову');return null;}
+  return conds;
+}
+
+function countDeals(){
+  var c=collectConditions();if(!c)return;
+  showLoading(true);hideError();
+  document.getElementById('count-bar').style.display='none';
+  google.script.run.withSuccessHandler(function(r){
+    showLoading(false);
+    if(r.error){showError(r.error);return;}
+    document.getElementById('count-bar').style.display='block';
+    document.getElementById('count-bar').textContent='Знайдено угод: '+r.count;
+  }).withFailureHandler(function(e){showLoading(false);showError(e.message);}).countDeals(c);
+}
+
+function runReport(){
+  var c=collectConditions();if(!c)return;
+  showLoading(true);hideError();
+  document.getElementById('report-section').style.display='none';
+  document.getElementById('count-bar').style.display='none';
+  var gb=document.getElementById('group-by').value;
+  google.script.run.withSuccessHandler(function(r){
+    showLoading(false);
+    if(r.error){showError(r.error);return;}
+    lastData=r;renderReport(r);
+  }).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildAndFetchReport(c,gb);
+}
+
+function renderReport(r){
+  document.getElementById('report-section').style.display='block';
+  renderSummary(r.totals);
+  renderGroups(r.groups);
+  renderTable(r.deals);
+}
+
+function renderSummary(t){
+  document.getElementById('summary-cards').innerHTML=
+    '<div class="card"><div class="num">'+t.total+'</div><div class="lbl">Всього угод</div></div>'+
+    '<div class="card won"><div class="num">'+t.won+' ('+t.conversion_rate+'%)</div><div class="lbl">Виграно</div></div>'+
+    '<div class="card lost"><div class="num">'+t.lost+'</div><div class="lbl">Програно</div></div>'+
+    '<div class="card open"><div class="num">'+t.open+'</div><div class="lbl">Відкриті</div></div>'+
+    '<div class="card"><div class="num">'+formatMoney(t.won_value)+'</div><div class="lbl">Сума виграних</div></div>'+
+    '<div class="card"><div class="num">'+formatMoney(t.open_value)+'</div><div class="lbl">Сума відкритих</div></div>';
+}
+
+function renderGroups(groups){
+  var c=document.getElementById('group-tables');c.innerHTML='';
+  if(!groups||!groups.length)return;
+  groups.forEach(function(g,i){
+    c.innerHTML+='<div class="group-section"><div class="group-header" onclick="toggleGroup('+i+')">'+
+      '<span class="group-name">'+g.name+'</span>'+
+      '<span class="group-stats">'+g.total+' угод | '+formatMoney(g.value)+' | Конверсія: '+g.conversion_rate+'%</span>'+
+      '</div><div class="group-body" id="gb-'+i+'"></div></div>';
+  });
+}
+
+function toggleGroup(i){var b=document.getElementById('gb-'+i);b.classList.toggle('open');}
+
+var TABLE_COLS=[
+  {key:'title',label:'Назва',link:true},{key:'owner_name',label:'Власник'},{key:'pipeline_name',label:'Воронка'},
+  {key:'stage_name',label:'Етап'},{key:'status',label:'Стан',badge:true},{key:'value',label:'Вартість',money:true},
+  {key:'add_time',label:'Дата створення',date:true},{key:'label',label:'Мітка'},
+  {key:'quality',label:'Якість ліда'},{key:'utm_medium',label:'Utm Medium'},{key:'site',label:'Сайт'},
+  {key:'source_form',label:'Джерело'},{key:'kp_link',label:'КП',link2:true},
+  {key:'lost_reason',label:'Причина програшу'},{key:'comment',label:'Коментар'}
+];
+
+function renderTable(deals){
+  var thead=document.getElementById('deals-thead');
+  thead.innerHTML='<tr>'+TABLE_COLS.map(function(c){
+    return '<th onclick="sortTable(\''+c.key+'\')">'+c.label+'<span class="sort-icon" id="si-'+c.key+'"></span></th>';
+  }).join('')+'</tr>';
+  fillTableBody(deals);
+}
+
+function fillTableBody(deals){
+  var tbody=document.getElementById('deals-tbody');
+  tbody.innerHTML=deals.map(function(d){
+    return '<tr>'+TABLE_COLS.map(function(c){
+      var v=d[c.key]||'';
+      if(c.link)return '<td><a href="https://webpromo.pipedrive.com/deal/'+d.id+'" target="_blank">'+esc(v)+'</a></td>';
+      if(c.link2&&v)return '<td><a href="'+esc(v)+'" target="_blank">Відкрити</a></td>';
+      if(c.badge)return '<td><span class="status-badge status-'+v+'">'+statusLabel(v)+'</span></td>';
+      if(c.money)return '<td style="text-align:right">'+formatMoney(v)+'</td>';
+      if(c.date)return '<td>'+formatDate(v)+'</td>';
+      return '<td>'+esc(String(v))+'</td>';
+    }).join('')+'</tr>';
+  }).join('');
+}
+
+function sortTable(col){
+  if(sortCol===col)sortDir=sortDir==='asc'?'desc':'asc'; else{sortCol=col;sortDir='asc';}
+  document.querySelectorAll('.sort-icon').forEach(function(s){s.textContent='';});
+  var icon=document.getElementById('si-'+col);if(icon)icon.textContent=sortDir==='asc'?' ▲':' ▼';
+  lastData.deals.sort(function(a,b){
+    var va=a[col]||'',vb=b[col]||'';
+    if(typeof va==='number')return sortDir==='asc'?va-vb:vb-va;
+    return sortDir==='asc'?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));
+  });
+  fillTableBody(lastData.deals);
+}
+
+function formatMoney(v){if(!v&&v!==0)return'';return new Intl.NumberFormat('uk-UA',{maximumFractionDigits:0}).format(v);}
+function formatDate(s){if(!s)return'';var d=new Date(s);return d.toLocaleDateString('uk-UA');}
+function statusLabel(s){return s==='won'?'Виграна':s==='lost'?'Програна':s==='open'?'Відкрита':s;}
+function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function showLoading(v){document.getElementById('loading').style.display=v?'block':'none';}
+function showError(m){document.getElementById('error-bar').style.display='block';document.getElementById('error-bar').textContent=m;}
+function hideError(){document.getElementById('error-bar').style.display='none';}
+</script>

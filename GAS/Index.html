@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= include('Style') ?>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Звіти по угодах Pipedrive</h1>
+      <div id="presets">
+        <label>Готові звіти:</label>
+        <select id="preset-select"><option value="">— Обрати —</option></select>
+      </div>
+    </header>
+    <section id="filter-panel">
+      <h2>Фільтри</h2>
+      <div id="filter-rows"></div>
+      <div class="filter-actions">
+        <button id="btn-add" onclick="addFilterRow()">+ Додати умову</button>
+        <div class="right-actions">
+          <select id="group-by">
+            <option value="none">Без групування</option>
+            <option value="owner">За власником</option>
+            <option value="pipeline">За воронкою</option>
+          </select>
+          <button id="btn-count" onclick="countDeals()">Порахувати</button>
+          <button id="btn-run" class="primary" onclick="runReport()">Побудувати звіт</button>
+        </div>
+      </div>
+    </section>
+    <section id="loading" style="display:none"><div class="spinner"></div><p>Завантаження даних...</p></section>
+    <section id="error-bar" style="display:none"></section>
+    <section id="count-bar" style="display:none"></section>
+    <section id="report-section" style="display:none">
+      <div id="summary-cards"></div>
+      <div id="group-tables"></div>
+      <div class="table-wrap"><table id="deals-table"><thead id="deals-thead"></thead><tbody id="deals-tbody"></tbody></table></div>
+    </section>
+  </div>
+  <?!= include('Script') ?>
+</body>
+</html>
