@@ -20,11 +20,29 @@ function initPresets(){
     var pr=presets.find(function(p){return p.id===sel.value;});
     if(!pr)return;
     document.getElementById('filter-rows').innerHTML='';
-    pr.filters.forEach(function(f){addFilterRowWithData(f);});
+    // Show preset description
+    document.getElementById('count-bar').style.display='block';
+    document.getElementById('count-bar').textContent=pr.description||'';
+    // Add AND filters as visible rows
+    if(pr.andConditions)pr.andConditions.forEach(function(f){addFilterRowWithData(f);});
+    if(pr.filters)pr.filters.forEach(function(f){addFilterRowWithData(f);});
+    // Store OR conditions for use in report
+    window._presetOrConditions=pr.orConditions||[];
+    if(pr.orConditions&&pr.orConditions.length){
+      var orDiv=document.createElement('div');orDiv.className='filter-row';orDiv.style.background='#f0f7ff';orDiv.style.padding='8px';orDiv.style.borderRadius='4px';
+      var fld=fields.find(function(f){return f.field_id===pr.orConditions[0].field_id;});
+      var labels=pr.orConditions.map(function(c){
+        if(fld&&fld.field_id===12462){var allS=[];for(var p in stages)(stages[p]||[]).forEach(function(s){if(s.id==c.value)allS.push(s.name);});return allS[0]||c.value;}
+        return c.value;
+      });
+      orDiv.innerHTML='<span style="color:#1a5276"><b>АБО:</b> '+(fld?fld.label:'')+ ' = '+labels.join(', ')+'</span>';
+      document.getElementById('filter-rows').appendChild(orDiv);
+    }
   };
 }
 
-function addFilterRow(){
+function clearPresetOr(){window._presetOrConditions=[];}
+function addFilterRow(){clearPresetOr();
   var div=document.createElement('div');div.className='filter-row';
   var fs=document.createElement('select');fs.className='field-select';
   var def=document.createElement('option');def.value='';def.textContent='— Оберіть поле —';fs.appendChild(def);
@@ -145,12 +163,13 @@ function countDeals(){
   var c=collectConditions();if(!c)return;
   showLoading(true);hideError();
   document.getElementById('count-bar').style.display='none';
+  var orC=window._presetOrConditions||[];
   google.script.run.withSuccessHandler(function(r){
     showLoading(false);
     if(r.error){showError(r.error);return;}
     document.getElementById('count-bar').style.display='block';
     document.getElementById('count-bar').textContent='Знайдено угод: '+r.count;
-  }).withFailureHandler(function(e){showLoading(false);showError(e.message);}).countDeals(c);
+  }).withFailureHandler(function(e){showLoading(false);showError(e.message);}).countDeals(c,orC);
 }
 
 function runReport(){
@@ -159,11 +178,12 @@ function runReport(){
   document.getElementById('report-section').style.display='none';
   document.getElementById('count-bar').style.display='none';
   var gb=document.getElementById('group-by').value;
+  var orC=window._presetOrConditions||[];
   google.script.run.withSuccessHandler(function(r){
     showLoading(false);
     if(r.error){showError(r.error);return;}
     lastData=r;renderReport(r);
-  }).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildAndFetchReport(c,gb);
+  }).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildAndFetchReport(c,gb,orC);
 }
 
 function renderReport(r){

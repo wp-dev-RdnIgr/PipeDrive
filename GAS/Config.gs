@@ -92,13 +92,18 @@ var PRESET_REPORTS = [
   {
     id:'commercial_proposals',
     name:'Комерційні пропозиції',
-    filters:[
-      {field_id:12464,operator:'=',value:'open'},
-      {field_id:12497,operator:'=',value:37},
-      {field_id:12462,operator:'=',value:8}
+    andConditions:[
+      {field_id:12497,operator:'=',value:37}
     ],
-    columns:['label','add_time','a600f66ee681cdbadd255ed1c5d3a1eef6fb1490','product_name','d3427cdd75f047b75c5ea754c9b4231b38be32c8','user_id','e664cf54795851840003239fba6262f7bb35ecba','stage_id','value','64ae14d237e29fe0796b6d88e3c86ffd34c50b8e','1338d3a3ecb513d7a68a32b5439872eb08c2a366','c5accf0005ddb2f09157fcca17861081f77aa9b6','50b777b7baa179cee7c06d63d50b1338887285ce','b3a97cc3db5a88f752797d1ac360952d0d3632a0','lost_reason','fbe73c1a96bd4170123745b5fd9a44f9a88438da'],
-    description:'Звіт по комерційним пропозиціям з усіма необхідними полями для аналізу'
+    orConditions:[
+      {field_id:12462,operator:'=',value:8},
+      {field_id:12462,operator:'=',value:9},
+      {field_id:12462,operator:'=',value:10},
+      {field_id:12462,operator:'=',value:13},
+      {field_id:12462,operator:'=',value:11},
+      {field_id:12462,operator:'=',value:14}
+    ],
+    description:'Якість ліда = SQL + Етапи: Підготовка/Презентація пропозицій, Прийняття рішення, Відкладено, Підготовка договору, Старт проєкту'
   }
 ];
 function getPresetReports(){return PRESET_REPORTS;}

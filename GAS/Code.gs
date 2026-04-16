@@ -9,12 +9,26 @@ function include(f) {
   return HtmlService.createHtmlOutputFromFile(f).getContent();
 }
 
-function buildAndFetchReport(conditions, groupBy) {
-  return callN8n_({action:'report', conditions:conditions, groupBy:groupBy});
+function buildAndFetchReport(conditions, groupBy, orConditions) {
+  var payload = {action:'report', groupBy:groupBy};
+  if (orConditions && orConditions.length) {
+    payload.andConditions = conditions;
+    payload.orConditions = orConditions;
+  } else {
+    payload.conditions = conditions;
+  }
+  return callN8n_(payload);
 }
 
-function countDeals(conditions) {
-  return callN8n_({action:'count', conditions:conditions});
+function countDeals(conditions, orConditions) {
+  var payload = {action:'count'};
+  if (orConditions && orConditions.length) {
+    payload.andConditions = conditions;
+    payload.orConditions = orConditions;
+  } else {
+    payload.conditions = conditions;
+  }
+  return callN8n_(payload);
 }
 
 function callN8n_(payload) {
