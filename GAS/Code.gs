@@ -117,6 +117,7 @@ function buildReportFromSheet(filters, groupBy) {
           var val = d[f.field] || '';
           if (f.op === '=') return String(val) === String(f.value);
           if (f.op === '!=') return String(val) !== String(f.value);
+          if (f.op === 'in') return Array.isArray(f.value) && f.value.map(String).indexOf(String(val)) >= 0;
           if (f.op === 'contains') return String(val).toLowerCase().indexOf(String(f.value).toLowerCase()) >= 0;
           return true;
         });
