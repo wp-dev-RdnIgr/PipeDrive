@@ -2,6 +2,7 @@
 <html>
 <head>
   <base target="_top">
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
   <?!= include('Style') ?>
 </head>
 <body>
@@ -13,6 +14,19 @@
         <select id="preset-select"><option value="">— Обрати —</option></select>
       </div>
     </header>
+
+    <section id="refresh-panel">
+      <h2>Завантаження даних</h2>
+      <div class="refresh-row">
+        <label>Період:</label>
+        <input type="date" id="date-from" />
+        <span>—</span>
+        <input type="date" id="date-to" />
+        <button id="btn-refresh" class="primary" onclick="refreshData()">Оновити дані</button>
+        <span id="refresh-status" class="status-text"></span>
+      </div>
+    </section>
+
     <section id="filter-panel">
       <h2>Фільтри</h2>
       <div id="filter-rows"></div>
@@ -29,11 +43,22 @@
         </div>
       </div>
     </section>
+
     <section id="loading" style="display:none"><div class="spinner"></div><p>Завантаження даних...</p></section>
     <section id="error-bar" style="display:none"></section>
     <section id="count-bar" style="display:none"></section>
+
     <section id="report-section" style="display:none">
       <div id="summary-cards"></div>
+      <div id="charts-section">
+        <div class="chart-row">
+          <div class="chart-box" id="chart-owners"></div>
+          <div class="chart-box" id="chart-months"></div>
+        </div>
+        <div class="chart-row">
+          <div class="chart-box" id="chart-pipelines"></div>
+        </div>
+      </div>
       <div id="group-tables"></div>
       <div class="table-wrap"><table id="deals-table"><thead id="deals-thead"></thead><tbody id="deals-tbody"></tbody></table></div>
     </section>
