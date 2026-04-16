@@ -1,0 +1,54 @@
+{
+  "name": "Pipedrive Report API",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pipedrive-report",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 400],
+      "webhookId": "pipedrive-report-api"
+    },
+    {
+      "parameters": {
+        "jsCode": "const API_TOKEN = '1985d3b7ffcc266add8f005be68caf8ff8ec605f';\nconst BASE = 'https://api.pipedrive.com/v1';\n\nconst body = $input.first().json.body || $input.first().json;\nconst conditions = body.conditions || [];\nconst groupBy = body.groupBy || 'none';\nconst action = body.action || 'report';\n\nif (!conditions.length) return [{json:{error:'Додайте хоча б одну умову'}}];\n\nasync function apiCall(method, path, payload) {\n  const opts = {method, url: BASE + path + (path.includes('?') ? '&' : '?') + 'api_token=' + API_TOKEN};\n  if (payload) {opts.body = payload; opts.headers = {'Content-Type':'application/json'};}\n  const r = await this.helpers.httpRequest(opts);\n  return r;\n}\n\nlet filterId = null;\ntry {\n  // Create filter\n  const filterPayload = {\n    name: 'n8n_api_' + Date.now(),\n    type: 'deals',\n    conditions: {glue:'and', conditions:[{glue:'and', conditions: conditions.map(c => ({object:'deal', field_id:c.field_id, operator:c.operator, value:c.value, extra_value:c.extra_value||null}))}]}\n  };\n  const fRes = await apiCall.call(this, 'POST', '/filters', filterPayload);\n  if (!fRes.success) return [{json:{error:'Filter error: ' + JSON.stringify(fRes)}}];\n  filterId = fRes.data.id;\n\n  // Count only?\n  if (action === 'count') {\n    const sRes = await apiCall.call(this, 'GET', '/deals/summary?filter_id=' + filterId);\n    await apiCall.call(this, 'DELETE', '/filters/' + filterId);\n    return [{json:{count: sRes.data.total_count, values: sRes.data.values_total}}];\n  }\n\n  // Fetch deals with pagination\n  let allDeals = [], start = 0, hasMore = true, pages = 0;\n  while (hasMore && pages < 20) {\n    const dRes = await apiCall.call(this, 'GET', '/deals?filter_id=' + filterId + '&limit=500&start=' + start);\n    if (dRes.data) allDeals = allDeals.concat(dRes.data);\n    const p = dRes.additional_data && dRes.additional_data.pagination;\n    hasMore = p && p.more_items_in_collection;\n    if (hasMore) start = p.next_start;\n    pages++;\n  }\n\n  // Delete filter\n  await apiCall.call(this, 'DELETE', '/filters/' + filterId);\n  filterId = null;\n\n  // Process report\n  const rows = allDeals.map(d => {\n    const ownerId = typeof d.user_id === 'object' ? d.user_id.id : d.user_id;\n    const ownerName = typeof d.user_id === 'object' ? d.user_id.name : '';\n    return {\n      id:d.id, title:d.title, owner_name:ownerName, owner_id:ownerId,\n      pipeline_id:d.pipeline_id, stage_id:d.stage_id,\n      status:d.status, value:d.value||0, currency:d.currency||'UAH',\n      add_time:d.add_time, won_time:d.won_time, lost_time:d.lost_time,\n      label:d.label, lost_reason:d.lost_reason,\n      site:d['a600f66ee681cdbadd255ed1c5d3a1eef6fb1490']||'',\n      utm_medium:d['d3427cdd75f047b75c5ea754c9b4231b38be32c8']||'',\n      utm_campaign:d['c5accf0005ddb2f09157fcca17861081f77aa9b6']||'',\n      utm_source:d['50b777b7baa179cee7c06d63d50b1338887285ce']||'',\n      page:d['b3a97cc3db5a88f752797d1ac360952d0d3632a0']||'',\n      quality:d['e664cf54795851840003239fba6262f7bb35ecba']||'',\n      source_form:d['1338d3a3ecb513d7a68a32b5439872eb08c2a366']||'',\n      kp_link:d['64ae14d237e29fe0796b6d88e3c86ffd34c50b8e']||'',\n      comment:d['fbe73c1a96bd4170123745b5fd9a44f9a88438da']||'',\n      processed:d['edd70f6d7138760fca5573f6f84868303eb6b38c']||'',\n      product_name:d['product_name']||''\n    };\n  });\n\n  const totals = {total:rows.length, won:0, lost:0, open:0, won_value:0, lost_value:0, open_value:0};\n  rows.forEach(r => {\n    if(r.status==='won'){totals.won++;totals.won_value+=r.value;}\n    else if(r.status==='lost'){totals.lost++;totals.lost_value+=r.value;}\n    else if(r.status==='open'){totals.open++;totals.open_value+=r.value;}\n  });\n  totals.conversion_rate = totals.total>0 ? Math.round(totals.won/totals.total*10000)/100 : 0;\n\n  let groups = [];\n  if (groupBy && groupBy !== 'none') {\n    const gMap = {};\n    rows.forEach(r => {\n      const gk = groupBy==='owner' ? r.owner_name : r.pipeline_id;\n      if(!gMap[gk]) gMap[gk]={name:gk,total:0,won:0,lost:0,open:0,value:0};\n      gMap[gk].total++; gMap[gk].value+=r.value;\n      if(r.status==='won') gMap[gk].won++;\n      else if(r.status==='lost') gMap[gk].lost++;\n      else gMap[gk].open++;\n    });\n    groups = Object.values(gMap).map(g => {g.conversion_rate=g.total>0?Math.round(g.won/g.total*10000)/100:0;return g;}).sort((a,b)=>b.total-a.total);\n  }\n\n  return [{json:{deals:rows, totals, groups, generated_at:new Date().toISOString()}}];\n} catch(e) {\n  if (filterId) try { await apiCall.call(this, 'DELETE', '/filters/' + filterId); } catch(e2) {}\n  return [{json:{error: e.message || String(e)}}];\n}"
+      },
+      "id": "code-001",
+      "name": "Process Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {"name": "Access-Control-Allow-Origin", "value": "*"},
+              {"name": "Access-Control-Allow-Methods", "value": "POST, OPTIONS"},
+              {"name": "Access-Control-Allow-Headers", "value": "Content-Type"}
+            ]
+          }
+        }
+      },
+      "id": "respond-001",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [720, 400]
+    }
+  ],
+  "connections": {
+    "Webhook": {"main":[[{"node":"Process Report","type":"main","index":0}]]},
+    "Process Report": {"main":[[{"node":"Respond","type":"main","index":0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}
