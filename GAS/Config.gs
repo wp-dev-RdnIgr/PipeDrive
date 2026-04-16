@@ -39,7 +39,9 @@ var FIELDS = [
   {key:'2ffacb7fa77a1138b46c1180354d1702ddd68227',field_id:12488,label:'Контрольна дата',type:'date',operators:['>=','<=']},
   {key:'f234ca843d48767041ad9a953efe88601b262baa',field_id:12492,label:'Коли звʼязатись',type:'date',operators:['>=','<=']},
   {key:'9bebbce4608524905ffc0545a90ce33dbf51c0d3',field_id:12494,label:'utm (старе поле)',type:'varchar',operators:['=','!=','LIKE','IS NULL','IS NOT NULL']},
-  {key:'d6c8ca444e27e837b3626348ff276e3e89c48276',field_id:12514,label:'Телефон webpromo',type:'varchar',operators:['=','!=','IS NULL','IS NOT NULL']}
+  {key:'d6c8ca444e27e837b3626348ff276e3e89c48276',field_id:12514,label:'Телефон webpromo',type:'varchar',operators:['=','!=','IS NULL','IS NOT NULL']},
+  {key:'85db618371dc3846bfea15394ba2d10517b74fdb',field_id:12528,label:'Спеціаліст, що готував КП',type:'user',operators:['=','!=','IS NULL','IS NOT NULL']},
+  {key:'f7a0e3a62e0d735f31b90feb7530ffa6403cfcd0',field_id:12529,label:'Коментар по програшу',type:'varchar',operators:['=','!=','LIKE','IS NULL','IS NOT NULL']}
 ];
 
 var PIPELINES = [
