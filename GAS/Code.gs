@@ -11,6 +11,20 @@ function include(f) {
   return HtmlService.createHtmlOutputFromFile(f).getContent();
 }
 
+function getProductNames() {
+  try {
+    var sql = "SELECT DISTINCT product_name FROM pipedrive.deals WHERE product_name IS NOT NULL AND product_name != '' ORDER BY product_name";
+    var opts = {method:'post', contentType:'application/json', muteHttpExceptions:true,
+      payload:JSON.stringify({query:sql})};
+    var resp = UrlFetchApp.fetch(N8N_DB, opts);
+    var data = JSON.parse(resp.getContentText());
+    var arr = Array.isArray(data) ? data : [data];
+    return arr.map(function(r){return r.product_name;}).filter(function(x){return x;});
+  } catch(e) {
+    return [];
+  }
+}
+
 function refreshAllData(dateFrom, dateTo) {
   try {
     var opts = {method:'post', contentType:'application/json', muteHttpExceptions:true,
@@ -78,7 +92,10 @@ function buildAndFetchReport(conditions, groupBy, orConditions) {
   try {
     var opts = {method:'post', contentType:'application/json', payload:JSON.stringify(payload), muteHttpExceptions:true};
     var resp = UrlFetchApp.fetch(N8N_WEBHOOK, opts);
-    return JSON.parse(resp.getContentText());
+    var body = resp.getContentText();
+    if (resp.getResponseCode() >= 400) return {error:'HTTP '+resp.getResponseCode()+': '+body.substring(0,300)};
+    if (!body) return {error:'Empty response from n8n webhook'};
+    try { return JSON.parse(body); } catch(parseErr) { return {error:'JSON parse: '+body.substring(0,300)}; }
   } catch(e) {
     return {error: e.message || String(e)};
   }

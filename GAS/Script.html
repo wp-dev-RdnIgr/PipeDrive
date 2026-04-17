@@ -1,5 +1,6 @@
 <script>
 var fields=[],pipelines=[],users=[],stages={},opLabels={},presets=[],lastData=null,sortCol=null,sortDir='asc';
+var productNames=[];
 window._presetOrConditions=[];window._presetColumns=null;
 
 google.charts.load('current',{packages:['corechart','bar']});
@@ -11,6 +12,7 @@ document.addEventListener('DOMContentLoaded',function(){
   google.script.run.withSuccessHandler(function(s){stages=s;}).getAllStages();
   google.script.run.withSuccessHandler(function(o){opLabels=o;}).getOperatorsLabels();
   google.script.run.withSuccessHandler(function(p){presets=p;initPresets();}).getPresetReports();
+  google.script.run.withSuccessHandler(function(p){productNames=p||[];}).getProductNames();
   var y=new Date().getFullYear();
   document.getElementById('date-from').value=y+'-01-01';
   document.getElementById('date-to').value=y+'-12-31';
@@ -108,6 +110,7 @@ function onFieldChange(row,fs,os,vc){
 function renderValue(field,op,vc){
   vc.innerHTML='';
   if(op==='IS NULL'||op==='IS NOT NULL')return;
+  if(field.field_id===12511 && productNames.length){var sel=document.createElement('select');sel.innerHTML='<option value="">— Оберіть товар —</option>';productNames.forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o);});vc.appendChild(sel);return;}
   if(field.type==='date'){var d1=document.createElement('input');d1.type='date';d1.className='date-from';var d2=document.createElement('input');d2.type='date';d2.className='date-to';vc.appendChild(d1);vc.appendChild(d2);return;}
   if(field.options&&field.options.length){var sel=document.createElement('select');field.options.forEach(function(o){var opt=document.createElement('option');opt.value=o.id;opt.textContent=o.label;sel.appendChild(opt);});vc.appendChild(sel);return;}
   if(field.type==='pipeline'){var sel=document.createElement('select');pipelines.forEach(function(p){var o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o);});vc.appendChild(sel);return;}
