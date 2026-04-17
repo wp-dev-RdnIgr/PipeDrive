@@ -11,18 +11,70 @@ function include(f) {
   return HtmlService.createHtmlOutputFromFile(f).getContent();
 }
 
+function getFieldOptionsFromDB() {
+  try {
+    var sql = "SELECT id, options FROM pipedrive.deal_fields WHERE options IS NOT NULL AND jsonb_array_length(options) > 0";
+    var opts = {method:'post', contentType:'application/json', muteHttpExceptions:true,
+      payload:JSON.stringify({query:sql})};
+    var resp = UrlFetchApp.fetch(N8N_DB, opts);
+    var data = JSON.parse(resp.getContentText());
+    var rows = Array.isArray(data) ? data : [data];
+    var map = {};
+    rows.forEach(function(r){ if(r.id && r.options) map[r.id] = r.options; });
+    return map;
+  } catch(e) {
+    return {};
+  }
+}
+
+function getUsersFromDB() {
+  try {
+    var sql = "SELECT id, name, active FROM pipedrive.users ORDER BY active DESC, name";
+    var opts = {method:'post', contentType:'application/json', muteHttpExceptions:true,
+      payload:JSON.stringify({query:sql})};
+    var resp = UrlFetchApp.fetch(N8N_DB, opts);
+    var data = JSON.parse(resp.getContentText());
+    return Array.isArray(data) ? data : [data];
+  } catch(e) { return []; }
+}
+
+function getPipelinesFromDB() {
+  try {
+    var sql = "SELECT id, name FROM pipedrive.pipelines ORDER BY order_nr, name";
+    var opts = {method:'post', contentType:'application/json', muteHttpExceptions:true,
+      payload:JSON.stringify({query:sql})};
+    var resp = UrlFetchApp.fetch(N8N_DB, opts);
+    var data = JSON.parse(resp.getContentText());
+    return Array.isArray(data) ? data : [data];
+  } catch(e) { return []; }
+}
+
+function getStagesFromDB() {
+  try {
+    var sql = "SELECT id, pipeline_id, name FROM pipedrive.stages ORDER BY pipeline_id, order_nr";
+    var opts = {method:'post', contentType:'application/json', muteHttpExceptions:true,
+      payload:JSON.stringify({query:sql})};
+    var resp = UrlFetchApp.fetch(N8N_DB, opts);
+    var data = JSON.parse(resp.getContentText());
+    var rows = Array.isArray(data) ? data : [data];
+    var map = {};
+    rows.forEach(function(r){ if(!map[r.pipeline_id]) map[r.pipeline_id]=[]; map[r.pipeline_id].push({id:r.id,name:r.name}); });
+    return map;
+  } catch(e) { return {}; }
+}
+
 function getProductNames() {
   try {
-    var sql = "SELECT string_agg(DISTINCT name, '||' ORDER BY name) as names FROM pipedrive.products WHERE active_flag = true";
+    var sql = "SELECT string_agg(name, '||' ORDER BY id) as names FROM pipedrive.products WHERE active_flag = true";
     var opts = {method:'post', contentType:'application/json', muteHttpExceptions:true,
       payload:JSON.stringify({query:sql})};
     var resp = UrlFetchApp.fetch(N8N_DB, opts);
     var data = JSON.parse(resp.getContentText());
     var row = Array.isArray(data) ? data[0] : data;
     if (row && row.names) return row.names.split('||').filter(function(x){return x;});
-    return ['SEO','PPC','SMM','ASO','CRO','Development','Content','SERM','SEO-аудит','PPC-аудит'];
+    return [];
   } catch(e) {
-    return ['SEO','PPC','SMM','ASO','CRO','Development','Content','SERM','SEO-аудит','PPC-аудит'];
+    return [];
   }
 }
 

@@ -13,6 +13,15 @@ document.addEventListener('DOMContentLoaded',function(){
   google.script.run.withSuccessHandler(function(o){opLabels=o;}).getOperatorsLabels();
   google.script.run.withSuccessHandler(function(p){presets=p;initPresets();}).getPresetReports();
   google.script.run.withSuccessHandler(function(p){productNames=p||[];}).getProductNames();
+  // Override hardcoded data with real values from DB
+  google.script.run.withSuccessHandler(function(u){if(u&&u.length)users=u.map(function(r){return {id:r.id,name:r.name,active:r.active};});}).getUsersFromDB();
+  google.script.run.withSuccessHandler(function(p){if(p&&p.length)pipelines=p;}).getPipelinesFromDB();
+  google.script.run.withSuccessHandler(function(s){if(s&&Object.keys(s).length)stages=s;}).getStagesFromDB();
+  google.script.run.withSuccessHandler(function(m){
+    // Override field options with real DB values
+    if(!m||!Object.keys(m).length)return;
+    fields.forEach(function(f){if(m[f.field_id])f.options=m[f.field_id];});
+  }).getFieldOptionsFromDB();
   var y=new Date().getFullYear();
   document.getElementById('date-from').value=y+'-01-01';
   document.getElementById('date-to').value=y+'-12-31';
