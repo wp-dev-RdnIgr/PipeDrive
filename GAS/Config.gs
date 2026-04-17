@@ -93,7 +93,22 @@ var PRESET_REPORTS = [
     id:'commercial_proposals',
     name:'Комерційні пропозиції',
     andConditions:[
-      {field_id:12497,operator:'=',value:37}
+      {field_id:12463,operator:'IS NOT NULL',value:''},
+      {field_id:12465,operator:'>=',value:''},
+      {field_id:12493,operator:'IS NOT NULL',value:''},
+      {field_id:12511,operator:'IS NOT NULL',value:''},
+      {field_id:12500,operator:'IS NOT NULL',value:''},
+      {field_id:12455,operator:'IS NOT NULL',value:''},
+      {field_id:12497,operator:'=',value:37},
+      {field_id:12456,operator:'IS NOT NULL',value:''},
+      {field_id:12528,operator:'IS NOT NULL',value:''},
+      {field_id:12527,operator:'IS NOT NULL',value:''},
+      {field_id:12496,operator:'IS NOT NULL',value:''},
+      {field_id:12501,operator:'IS NOT NULL',value:''},
+      {field_id:12499,operator:'IS NOT NULL',value:''},
+      {field_id:12508,operator:'IS NOT NULL',value:''},
+      {field_id:12475,operator:'IS NOT NULL',value:''},
+      {field_id:12529,operator:'IS NOT NULL',value:''}
     ],
     orConditions:[
       {field_id:12462,operator:'=',value:8},
@@ -126,7 +141,7 @@ var PRESET_REPORTS = [
       {key:'lost_reason',label:'Причина програшу'},
       {key:'c_loss_comment',label:'Коментар по програшу'}
     ],
-    description:'Якість ліда = SQL + Етапи: Підготовка/Презентація пропозицій, Прийняття рішення, Відкладено, Підготовка договору, Старт проєкту'
+    description:'Звіт по комерційним пропозиціям: усі поля для аналізу'
   }
 ];
 function getPresetReports(){return PRESET_REPORTS;}
