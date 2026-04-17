@@ -16,14 +16,13 @@
     </header>
 
     <section id="refresh-panel">
-      <h2>Завантаження даних</h2>
+      <h2>Оновлення даних</h2>
       <div class="refresh-row">
         <label>Період:</label>
         <input type="date" id="date-from" />
         <span>—</span>
         <input type="date" id="date-to" />
         <button id="btn-refresh" class="primary" onclick="refreshData()">Оновити дані</button>
-        <span id="refresh-status" class="status-text"></span>
       </div>
     </section>
 
@@ -38,31 +37,51 @@
             <option value="owner">За власником</option>
             <option value="pipeline">За воронкою</option>
           </select>
-          <button id="btn-count" onclick="countDeals()">Порахувати</button>
           <button id="btn-run" class="primary" onclick="runReport()">Побудувати звіт</button>
         </div>
       </div>
     </section>
 
-    <section id="loading" style="display:none"><div class="spinner"></div><p>Завантаження даних...</p></section>
+    <section id="loading" style="display:none"><div class="spinner"></div><p>Завантаження...</p></section>
     <section id="error-bar" style="display:none"></section>
-    <section id="count-bar" style="display:none"></section>
 
     <section id="report-section" style="display:none">
       <div id="summary-cards"></div>
       <div id="charts-section">
-        <div class="chart-row">
-          <div class="chart-box" id="chart-owners"></div>
-          <div class="chart-box" id="chart-months"></div>
-        </div>
-        <div class="chart-row">
-          <div class="chart-box" id="chart-pipelines"></div>
-        </div>
+        <div class="chart-row"><div class="chart-box" id="chart-owners"></div><div class="chart-box" id="chart-months"></div></div>
+        <div class="chart-row"><div class="chart-box" id="chart-pipelines"></div></div>
       </div>
       <div id="group-tables"></div>
       <div class="table-wrap"><table id="deals-table"><thead id="deals-thead"></thead><tbody id="deals-tbody"></tbody></table></div>
     </section>
   </div>
+
+  <!-- Sync Modal -->
+  <div id="sync-modal" class="modal" style="display:none">
+    <div class="modal-content">
+      <div id="sync-progress">
+        <div class="spinner-large"></div>
+        <h2>Оновлення бази даних</h2>
+        <p class="sync-hint">Синхронізація всіх даних з Pipedrive.<br>Зазвичай займає ~2-3 хвилини.</p>
+        <div class="sync-entities">
+          <div>📊 Угоди (deals)</div>
+          <div>👤 Контакти (persons)</div>
+          <div>🏢 Організації (organizations)</div>
+          <div>📋 Активності (activities)</div>
+          <div>📦 Продукти (products)</div>
+          <div>📝 Нотатки (notes)</div>
+        </div>
+      </div>
+      <div id="sync-result" style="display:none">
+        <div id="sync-result-icon"></div>
+        <h2 id="sync-result-title"></h2>
+        <div id="sync-result-table"></div>
+        <div id="sync-result-time"></div>
+        <button class="primary" onclick="closeSyncModal()">Закрити</button>
+      </div>
+    </div>
+  </div>
+
   <?!= include('Script') ?>
 </body>
 </html>

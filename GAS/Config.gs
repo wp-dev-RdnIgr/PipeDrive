@@ -104,27 +104,27 @@ var PRESET_REPORTS = [
       {field_id:12462,operator:'=',value:14}
     ],
     sheetFilters:[
-      {field:'e664cf54795851840003239fba6262f7bb35ecba',op:'=',value:'37'},
+      {field:'c_lead_quality',op:'=',value:'37'},
       {field:'stage_id',op:'in',value:[8,9,10,13,11,14]}
     ],
     columns:[
       {key:'label',label:'Країна'},
       {key:'add_time',label:'Дата ліда',date:true},
-      {key:'a600f66ee681cdbadd255ed1c5d3a1eef6fb1490',label:'Сайт компанії'},
+      {key:'org_name',label:'Сайт компанії'},
       {key:'product_name',label:'Назва товару'},
-      {key:'d3427cdd75f047b75c5ea754c9b4231b38be32c8',label:'Канал (Utm Medium)'},
+      {key:'c_utm_medium',label:'Канал (Utm Medium)'},
       {key:'owner_name',label:'Менеджер'},
-      {key:'e664cf54795851840003239fba6262f7bb35ecba',label:'Якість ліда'},
-      {key:'stage_id',label:'Етап',stage:true},
+      {key:'c_lead_quality',label:'Якість ліда'},
+      {key:'stage_name',label:'Етап'},
       {key:'value',label:'Сума угоди',money:true},
-      {key:'85db618371dc3846bfea15394ba2d10517b74fdb',label:'Спеціаліст КП'},
-      {key:'64ae14d237e29fe0796b6d88e3c86ffd34c50b8e',label:'Лінк на презентацію',link:true},
-      {key:'1338d3a3ecb513d7a68a32b5439872eb08c2a366',label:'Джерело'},
-      {key:'c5accf0005ddb2f09157fcca17861081f77aa9b6',label:'Utm Campaign'},
-      {key:'50b777b7baa179cee7c06d63d50b1338887285ce',label:'Utm Source'},
-      {key:'b3a97cc3db5a88f752797d1ac360952d0d3632a0',label:'Сторінка сайту'},
+      {key:'c_kp_specialist',label:'Спеціаліст КП'},
+      {key:'c_kp_link',label:'Лінк на презентацію',link:true},
+      {key:'c_source_form',label:'Джерело'},
+      {key:'c_utm_campaign',label:'Utm Campaign'},
+      {key:'c_utm_source',label:'Utm Source'},
+      {key:'c_site_page',label:'Сторінка сайту'},
       {key:'lost_reason',label:'Причина програшу'},
-      {key:'f7a0e3a62e0d735f31b90feb7530ffa6403cfcd0',label:'Коментар по програшу'}
+      {key:'c_loss_comment',label:'Коментар по програшу'}
     ],
     description:'Якість ліда = SQL + Етапи: Підготовка/Презентація пропозицій, Прийняття рішення, Відкладено, Підготовка договору, Старт проєкту'
   }
