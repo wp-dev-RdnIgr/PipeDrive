@@ -121,7 +121,14 @@ function renderValue(field,op,vc){
   if(op==='IS NULL'||op==='IS NOT NULL')return;
   if(field.field_id===12511 && productNames.length){var sel=document.createElement('select');sel.innerHTML='<option value="">— Оберіть товар —</option>';productNames.forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o);});vc.appendChild(sel);return;}
   if(field.type==='date'){var d1=document.createElement('input');d1.type='date';d1.className='date-from';var d2=document.createElement('input');d2.type='date';d2.className='date-to';vc.appendChild(d1);vc.appendChild(d2);return;}
-  if(field.options&&field.options.length){var sel=document.createElement('select');field.options.forEach(function(o){var opt=document.createElement('option');opt.value=o.id;opt.textContent=o.label;sel.appendChild(opt);});vc.appendChild(sel);return;}
+  if(field.options&&field.options.length){
+    // Fields stored as label (string) in DB, not as ID
+    var labelFields=[12475]; // lost_reason
+    var useLabel=labelFields.indexOf(field.field_id)>=0;
+    var sel=document.createElement('select');
+    field.options.forEach(function(o){var opt=document.createElement('option');opt.value=useLabel?o.label:o.id;opt.textContent=o.label;sel.appendChild(opt);});
+    vc.appendChild(sel);return;
+  }
   if(field.type==='pipeline'){var sel=document.createElement('select');pipelines.forEach(function(p){var o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o);});vc.appendChild(sel);return;}
   if(field.type==='stage'){var sel=document.createElement('select');pipelines.forEach(function(p){var og=document.createElement('optgroup');og.label=p.name;(stages[p.id]||[]).forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name;og.appendChild(o);});sel.appendChild(og);});vc.appendChild(sel);return;}
   if(field.type==='user'){var sel=document.createElement('select');var ag=document.createElement('optgroup');ag.label='Активні';var ig=document.createElement('optgroup');ig.label='Неактивні';users.forEach(function(u){var o=document.createElement('option');o.value=u.id;o.textContent=u.name;(u.active?ag:ig).appendChild(o);});sel.appendChild(ag);sel.appendChild(ig);vc.appendChild(sel);return;}
