@@ -136,12 +136,25 @@ function collectConditions(){
 }
 
 // ===== REPORT =====
+// Map field_id to SQL column name + comparison type
+var FIELD_ID_TO_SQL={
+  12460:'pipeline_id',12462:'stage_id',12464:'status',12455:'owner_id',12454:'creator_id',
+  12465:'add_time',12466:'update_time',12470:'won_time',12473:'lost_time',12474:'close_time',
+  12484:'expected_close_date',12456:'value',12453:'title',12463:'label',12475:'lost_reason',
+  12459:'org_name',12461:'person_name',12458:'probability',12519:'origin',12521:'channel',
+  12497:'c_lead_quality',12504:'c_client_position',12496:'c_source_form',12515:'c_processed',
+  12498:'c_transferred_cold',12485:'c_project_name',12493:'c_site_name',12499:'c_utm_source',
+  12500:'c_utm_medium',12501:'c_utm_campaign',12502:'c_utm_term',12503:'c_utm_content',
+  12508:'c_site_page',12489:'c_comment',12527:'c_kp_link',12512:'c_quality_date',
+  12488:'c_control_date',12492:'c_contact_date',12494:'c_utm',12514:'c_phone_webpromo',
+  12528:'c_kp_specialist',12529:'c_loss_comment',12511:'title' // product_name search via title
+};
+
 function runReport(){
   var selVal=document.getElementById('preset-select').value;
   var pr=selVal?presets.find(function(p){return p.id===selVal;}):null;
   if(pr&&pr.sheetFilters){
-    showLoading(true);hideError();
-    document.getElementById('report-section').style.display='none';
+    showLoading(true);hideError();document.getElementById('report-section').style.display='none';
     var gb=document.getElementById('group-by').value;
     google.script.run.withSuccessHandler(function(r){showLoading(false);if(r.error){showError(r.error);return;}lastData=r;renderReport(r);}).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildReportFromDB(pr.sheetFilters,gb);
     return;
@@ -149,8 +162,16 @@ function runReport(){
   window._presetColumns=null;
   var c=collectConditions();if(!c)return;showLoading(true);hideError();
   document.getElementById('report-section').style.display='none';
-  var gb=document.getElementById('group-by').value;var orC=window._presetOrConditions||[];
-  google.script.run.withSuccessHandler(function(r){showLoading(false);if(r.error){showError(r.error);return;}lastData=r;renderReport(r);}).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildAndFetchReport(c,gb,orC);
+  // Convert field_id conditions to SQL filters
+  var dbFilters=c.map(function(cond){
+    var col=FIELD_ID_TO_SQL[cond.field_id];if(!col)return null;
+    var opMap={'=':'=','!=':'!=','>=':'>=','<=':'<=','>':'>','<':'<','LIKE':'contains','IS NULL':'is null','IS NOT NULL':'is not null'};
+    // Special case: product_name (12511) -> search title with contains
+    if(cond.field_id===12511)return {field:'title',op:'contains',value:cond.value};
+    return {field:col,op:opMap[cond.operator]||'=',value:cond.value};
+  }).filter(function(x){return x;});
+  var gb=document.getElementById('group-by').value;
+  google.script.run.withSuccessHandler(function(r){showLoading(false);if(r.error){showError(r.error);return;}lastData=r;renderReport(r);}).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildReportFromDB(dbFilters,gb);
 }
 
 function renderReport(r){

@@ -13,15 +13,16 @@ function include(f) {
 
 function getProductNames() {
   try {
-    var sql = "SELECT DISTINCT product_name FROM pipedrive.deals WHERE product_name IS NOT NULL AND product_name != '' ORDER BY product_name";
+    var sql = "SELECT string_agg(DISTINCT name, '||' ORDER BY name) as names FROM pipedrive.products WHERE active_flag = true";
     var opts = {method:'post', contentType:'application/json', muteHttpExceptions:true,
       payload:JSON.stringify({query:sql})};
     var resp = UrlFetchApp.fetch(N8N_DB, opts);
     var data = JSON.parse(resp.getContentText());
-    var arr = Array.isArray(data) ? data : [data];
-    return arr.map(function(r){return r.product_name;}).filter(function(x){return x;});
+    var row = Array.isArray(data) ? data[0] : data;
+    if (row && row.names) return row.names.split('||').filter(function(x){return x;});
+    return ['SEO','PPC','SMM','ASO','CRO','Development','Content','SERM','SEO-аудит','PPC-аудит'];
   } catch(e) {
-    return [];
+    return ['SEO','PPC','SMM','ASO','CRO','Development','Content','SERM','SEO-аудит','PPC-аудит'];
   }
 }
 
