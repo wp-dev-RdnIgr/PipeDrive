@@ -92,13 +92,26 @@ function refreshAllData(dateFrom, dateTo) {
 function buildReportFromDB(filters, groupBy) {
   try {
     var where = [];
+    var productFilter = null;
     if (filters && filters.length) {
       filters.forEach(function(f) {
-        if (f.op === '=') where.push(f.field + " = '" + f.value + "'");
-        else if (f.op === '!=') where.push(f.field + " != '" + f.value + "'");
-        else if (f.op === 'in') where.push(f.field + " IN (" + f.value.join(',') + ")");
-        else if (f.op === 'contains') where.push(f.field + " ILIKE '%" + f.value + "%'");
+        // Special: product_name — use JOIN with deal_products
+        if (f.field === 'product_name' || f.field === 'deal_product') {
+          productFilter = f.value;
+          return;
+        }
+        if (f.op === '=') where.push('d.' + f.field + " = '" + String(f.value).replace(/'/g,"''") + "'");
+        else if (f.op === '!=') where.push('d.' + f.field + " != '" + String(f.value).replace(/'/g,"''") + "'");
+        else if (f.op === '>=') where.push('d.' + f.field + " >= '" + f.value + "'");
+        else if (f.op === '<=') where.push('d.' + f.field + " <= '" + f.value + "'");
+        else if (f.op === 'in') where.push('d.' + f.field + " IN (" + f.value.join(',') + ")");
+        else if (f.op === 'contains') where.push('d.' + f.field + " ILIKE '%" + String(f.value).replace(/'/g,"''") + "%'");
+        else if (f.op === 'is null') where.push('d.' + f.field + " IS NULL");
+        else if (f.op === 'is not null') where.push('d.' + f.field + " IS NOT NULL");
       });
+    }
+    if (productFilter) {
+      where.push("EXISTS (SELECT 1 FROM pipedrive.deal_products dp WHERE dp.deal_id = d.id AND dp.name = '" + String(productFilter).replace(/'/g,"''") + "')");
     }
     var whereStr = where.length ? ' WHERE ' + where.join(' AND ') : '';
     var sql = "SELECT d.*, s.name as stage_name, p.name as pipeline_name FROM pipedrive.deals d LEFT JOIN pipedrive.stages s ON d.stage_id=s.id LEFT JOIN pipedrive.pipelines p ON d.pipeline_id=p.id" + whereStr + " ORDER BY d.add_time DESC";

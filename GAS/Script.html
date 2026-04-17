@@ -175,8 +175,8 @@ function runReport(){
   var dbFilters=c.map(function(cond){
     var col=FIELD_ID_TO_SQL[cond.field_id];if(!col)return null;
     var opMap={'=':'=','!=':'!=','>=':'>=','<=':'<=','>':'>','<':'<','LIKE':'contains','IS NULL':'is null','IS NOT NULL':'is not null'};
-    // Special case: product_name (12511) -> search title with contains
-    if(cond.field_id===12511)return {field:'title',op:'contains',value:cond.value};
+    // Special case: product_name (12511) -> JOIN with deal_products
+    if(cond.field_id===12511)return {field:'product_name',op:'=',value:cond.value};
     return {field:col,op:opMap[cond.operator]||'=',value:cond.value};
   }).filter(function(x){return x;});
   var gb=document.getElementById('group-by').value;
