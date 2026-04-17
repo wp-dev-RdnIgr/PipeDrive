@@ -91,6 +91,7 @@ function refreshAllData(dateFrom, dateTo) {
 
 function buildReportFromDB(filters, groupBy) {
   try {
+    console.log('FILTERS:', JSON.stringify(filters));
     var where = [];
     var productFilter = null;
     if (filters && filters.length) {
@@ -115,6 +116,7 @@ function buildReportFromDB(filters, groupBy) {
     }
     var whereStr = where.length ? ' WHERE ' + where.join(' AND ') : '';
     var sql = "SELECT d.*, s.name as stage_name, p.name as pipeline_name FROM pipedrive.deals d LEFT JOIN pipedrive.stages s ON d.stage_id=s.id LEFT JOIN pipedrive.pipelines p ON d.pipeline_id=p.id" + whereStr + " ORDER BY d.add_time DESC";
+    console.log('SQL:', sql);
     var opts = {method:'post', contentType:'application/json', muteHttpExceptions:true,
       payload:JSON.stringify({query:sql})};
     var resp = UrlFetchApp.fetch(N8N_DB, opts);
