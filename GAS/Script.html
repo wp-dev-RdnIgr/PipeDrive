@@ -187,7 +187,7 @@ function runReport(){
     return {field:col,op:opMap[cond.operator]||'=',value:cond.value};
   }).filter(function(x){return x;});
   var gb=document.getElementById('group-by').value;
-  alert('DEBUG: '+JSON.stringify(dbFilters));google.script.run.withSuccessHandler(function(r){showLoading(false);if(r.error){showError(r.error);return;}lastData=r;renderReport(r);}).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildReportFromDB(dbFilters,gb);
+  google.script.run.withSuccessHandler(function(r){showLoading(false);if(r.error){showError(r.error);return;}if(r._debug){document.getElementById('debug-filters').textContent=JSON.stringify(r._debug.inputFilters,null,2);document.getElementById('debug-sql').textContent=r._debug.sql;document.getElementById('debug-count').textContent='Знайдено угод: '+r._debug.dealsCount;document.getElementById('debug-modal').style.display='flex';}lastData=r;renderReport(r);}).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildReportFromDB(dbFilters,gb);
 }
 
 function renderReport(r){

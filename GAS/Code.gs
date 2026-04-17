@@ -147,7 +147,7 @@ function buildReportFromDB(filters, groupBy) {
       groups = Object.keys(gMap).map(function(k){var g=gMap[k];g.conversion_rate=g.total>0?Math.round(g.won/g.total*10000)/100:0;return g;}).sort(function(a,b){return b.total-a.total;});
     }
 
-    return {deals:deals, totals:totals, groups:groups, generated_at:new Date().toISOString()};
+    return {deals:deals, totals:totals, groups:groups, generated_at:new Date().toISOString(), _debug:{inputFilters:filters, sql:sql, dealsCount:deals.length}};
   } catch(e) {
     return {error: e.message || String(e)};
   }

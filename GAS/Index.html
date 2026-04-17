@@ -82,6 +82,20 @@
     </div>
   </div>
 
+  <!-- Debug Modal -->
+  <div id="debug-modal" class="modal" style="display:none">
+    <div class="modal-content" style="max-width:900px;text-align:left">
+      <h2>🔍 Debug: Report Query</h2>
+      <h3>Вхідні фільтри:</h3>
+      <pre id="debug-filters" style="background:#f8f9fa;padding:12px;border-radius:6px;overflow-x:auto;font-size:12px;max-height:150px"></pre>
+      <h3>SQL-запит:</h3>
+      <pre id="debug-sql" style="background:#f8f9fa;padding:12px;border-radius:6px;overflow-x:auto;font-size:12px;max-height:250px;white-space:pre-wrap"></pre>
+      <h3>Результат:</h3>
+      <pre id="debug-count" style="background:#f8f9fa;padding:12px;border-radius:6px;font-size:12px"></pre>
+      <button class="primary" onclick="document.getElementById('debug-modal').style.display='none'">Закрити</button>
+    </div>
+  </div>
+
   <?!= include('Script') ?>
 </body>
 </html>
