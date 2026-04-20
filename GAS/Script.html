@@ -458,10 +458,17 @@ function renderLossReasons(deals){
   });
   var dt=new google.visualization.DataTable();dt.addColumn('string','Причина');dt.addColumn('number','Угод');
   Object.keys(byReason).forEach(function(k){dt.addRow([k,byReason[k]]);});
-  box.innerHTML='<div class="chart-title">❌ Причини програшу<span class="hint">клік по сектору — коментарі</span></div><div id="chart-loss-canvas" style="height:340px;cursor:pointer"></div>';
+  box.innerHTML='<div class="chart-title">❌ Причини програшу<span class="hint">клік по сектору — коментарі</span></div><div id="chart-loss-canvas" style="height:420px;cursor:pointer"></div>';
   box.style.display='block';
   var chart=new google.visualization.PieChart(document.getElementById('chart-loss-canvas'));
-  chart.draw(dt,chartOpts({pieHole:0.5,legend:{position:'right',textStyle:{fontSize:11,color:'#4b5563'}},chartArea:{left:16,right:140,top:16,bottom:16},colors:['#ef4444','#f59e0b','#f97316','#dc2626','#fb7185','#fda4af','#991b1b','#b45309','#c2410c']}));
+  chart.draw(dt,chartOpts({
+    pieHole:0.5,
+    legend:{position:'labeled',textStyle:{fontSize:11,color:'#4b5563'},maxLines:3},
+    pieSliceText:'percentage',
+    pieSliceTextStyle:{fontSize:11,color:'#fff'},
+    chartArea:{left:40,right:40,top:20,bottom:20,width:'88%',height:'88%'},
+    colors:['#ef4444','#f59e0b','#f97316','#dc2626','#fb7185','#fda4af','#991b1b','#b45309','#c2410c','#7c2d12','#fbbf24','#facc15','#f472b6','#e879f9','#c084fc']
+  }));
   google.visualization.events.addListener(chart,'select',function(){
     var sel=chart.getSelection();if(!sel.length)return;
     var reason=dt.getValue(sel[0].row,0);showLossComments(reason);
