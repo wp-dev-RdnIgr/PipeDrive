@@ -87,7 +87,11 @@
 
     <div id="view-ai" style="display:none">
       <section id="ai-panel" class="panel">
-        <h2>AI-помічник</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h2 style="margin:0">AI-помічник</h2>
+          <button class="ghost" onclick="openAIKeyModal()" style="font-size:12px;padding:6px 12px">Налаштувати API-ключ</button>
+        </div>
+        <div id="ai-setup-banner" style="display:none"></div>
         <p style="color:var(--gray-500);font-size:13px;margin-bottom:16px">Опишіть звіт природною мовою — наприклад «Угоди по РРС в Україні за 2026 рік» або «Комерційні пропозиції Karina Tkach за останні 30 днів». AI підбере фільтри й запустить звіт.</p>
         <div id="ai-history" class="ai-history"></div>
         <div class="ai-input-row">
@@ -97,7 +101,26 @@
             <button class="primary" onclick="sendAiPrompt()" id="ai-send-btn">Згенерувати звіт</button>
           </div>
         </div>
+        <div style="font-size:11px;color:var(--gray-400);margin-top:10px">Якщо мікрофон не працює — відкрийте цю сторінку в новій вкладці (іконка ↗ у правому верхньому куті iframe) і дайте дозвіл на мікрофон у браузері.</div>
       </section>
+    </div>
+  </div>
+
+  <!-- AI key modal -->
+  <div id="ai-key-modal" class="modal" style="display:none">
+    <div class="modal-content" style="max-width:480px;text-align:left">
+      <h2 style="text-align:center;margin-bottom:8px">Налаштування API-ключа</h2>
+      <p style="color:var(--gray-500);font-size:13px;margin-bottom:14px;text-align:center">Anthropic API-ключ зберігається в Apps Script Properties на сервері, не в браузері.</p>
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--gray-700);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">API-ключ</label>
+      <input id="ai-key-input" type="password" placeholder="sk-ant-api03-..." style="width:100%;padding:10px 12px;border:1.5px solid var(--gray-200);border-radius:6px;font-size:13px;font-family:inherit;margin-bottom:6px" />
+      <div id="ai-key-error" style="color:var(--danger);font-size:12px;margin-bottom:10px;min-height:16px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="ghost" onclick="document.getElementById('ai-key-modal').style.display='none'">Скасувати</button>
+        <button class="primary" id="ai-key-save-btn" onclick="saveAIKey()">Зберегти</button>
+      </div>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--gray-100);font-size:11px;color:var(--gray-500);line-height:1.6">
+        <strong>Де взяти ключ:</strong> <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com/settings/keys</a>. Створіть окремий ключ для цього додатку.
+      </div>
     </div>
   </div>
 
