@@ -8,8 +8,16 @@ var AI_MODEL = 'claude-haiku-4-5-20251001';
 // Stores the Anthropic API key in Script Properties; set once via
 // setAnthropicKey('sk-ant-...') from the Apps Script editor.
 function setAnthropicKey(key) {
-  PropertiesService.getScriptProperties().setProperty('ANTHROPIC_API_KEY', key);
-  return 'OK';
+  if (!key || typeof key !== 'string' || key.indexOf('sk-ant-') !== 0) {
+    return {error: 'Ключ має починатися з sk-ant-'};
+  }
+  PropertiesService.getScriptProperties().setProperty('ANTHROPIC_API_KEY', key.trim());
+  return {ok: true};
+}
+
+function isAIConfigured() {
+  var k = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
+  return !!(k && k.indexOf('sk-ant-') === 0);
 }
 
 function askAI(userPrompt) {

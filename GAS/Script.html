@@ -3,6 +3,40 @@ function switchTab(name){
   document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===name);});
   document.getElementById('view-report').style.display=name==='report'?'block':'none';
   document.getElementById('view-ai').style.display=name==='ai'?'block':'none';
+  if(name==='ai')refreshAISetupBanner();
+}
+
+// ===== AI KEY SETUP =====
+function refreshAISetupBanner(){
+  google.script.run.withSuccessHandler(function(configured){
+    var b=document.getElementById('ai-setup-banner');
+    if(configured){b.style.display='none';b.innerHTML='';return;}
+    b.style.display='block';
+    b.innerHTML='<div style="background:var(--warning-light);border-left:3px solid var(--warning);padding:12px 14px;border-radius:6px;font-size:13px;margin-bottom:14px;color:#92400e"><strong>API-ключ не налаштовано.</strong> Натисніть «Налаштувати API-ключ» угорі праворуч, щоб увімкнути AI-помічника.</div>';
+  }).isAIConfigured();
+}
+function openAIKeyModal(){
+  document.getElementById('ai-key-input').value='';
+  document.getElementById('ai-key-error').textContent='';
+  document.getElementById('ai-key-modal').style.display='flex';
+  setTimeout(function(){document.getElementById('ai-key-input').focus();},50);
+}
+function saveAIKey(){
+  var inp=document.getElementById('ai-key-input');var err=document.getElementById('ai-key-error');
+  var btn=document.getElementById('ai-key-save-btn');
+  var key=(inp.value||'').trim();err.textContent='';
+  if(!key){err.textContent='Введіть ключ';return;}
+  if(key.indexOf('sk-ant-')!==0){err.textContent='Ключ має починатися з sk-ant-';return;}
+  btn.disabled=true;btn.innerHTML='<span class="ai-spinner"></span>Збереження...';
+  google.script.run.withSuccessHandler(function(r){
+    btn.disabled=false;btn.textContent='Зберегти';
+    if(r&&r.error){err.textContent=r.error;return;}
+    document.getElementById('ai-key-modal').style.display='none';
+    refreshAISetupBanner();
+    addAIMessage('ai','Система','API-ключ збережено. Можна робити запити.');
+  }).withFailureHandler(function(e){
+    btn.disabled=false;btn.textContent='Зберегти';err.textContent=e.message||String(e);
+  }).setAnthropicKey(key);
 }
 
 // ===== AI ASSISTANT =====
@@ -53,7 +87,15 @@ function toggleMic(){
     var txt='';for(var i=ev.resultIndex;i<ev.results.length;i++)txt+=ev.results[i][0].transcript;
     ta.value=base+txt;
   };
-  rec.onerror=function(ev){_listening=false;btn.classList.remove('listening');if(ev.error&&ev.error!=='no-speech'&&ev.error!=='aborted')addAIMessage('error','Голос','Помилка мікрофона: '+ev.error);};
+  rec.onerror=function(ev){
+    _listening=false;btn.classList.remove('listening');
+    if(ev.error==='no-speech'||ev.error==='aborted')return;
+    if(ev.error==='not-allowed'){
+      addAIMessage('error','Голос','Мікрофон заблоковано. Apps Script обгортає сторінку в iframe без дозволу на мікрофон. Відкрийте додаток у новій вкладці (посилання Open in new tab / ↗ у правому верхньому куті) та дайте дозвіл у браузері.');
+      return;
+    }
+    addAIMessage('error','Голос','Помилка мікрофона: '+ev.error);
+  };
   rec.onend=function(){_listening=false;btn.classList.remove('listening');};
   _recognizer=rec;rec.start();
 }
