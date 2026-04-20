@@ -3,6 +3,19 @@ var fields=[],pipelines=[],users=[],stages={},opLabels={},presets=[],lastData=nu
 var productNames=[];
 window._presetOrConditions=[];window._presetColumns=null;
 
+// Унифицированная палитра и базовые опции графиков
+var CHART_COLORS={primary:'#3b82f6',success:'#10b981',danger:'#ef4444',warning:'#f59e0b',purple:'#8b5cf6',teal:'#14b8a6',orange:'#f97316',gray:'#6b7280'};
+var CHART_BASE={
+  backgroundColor:{fill:'transparent'},
+  fontName:'-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif',
+  legend:{position:'top',alignment:'start',textStyle:{fontSize:12,color:'#4b5563'}},
+  tooltip:{textStyle:{fontSize:12}},
+  hAxis:{textStyle:{fontSize:11,color:'#6b7280'},gridlines:{color:'transparent'}},
+  vAxis:{textStyle:{fontSize:11,color:'#9ca3af'},gridlines:{color:'#f3f4f6'},minorGridlines:{color:'transparent'},baselineColor:'#e5e7eb'},
+  chartArea:{left:48,right:24,top:40,bottom:56}
+};
+function chartOpts(extra){var o=JSON.parse(JSON.stringify(CHART_BASE));Object.keys(extra||{}).forEach(function(k){o[k]=extra[k];});return o;}
+
 google.charts.load('current',{packages:['corechart','bar']});
 
 document.addEventListener('DOMContentLoaded',function(){
@@ -423,12 +436,12 @@ function renderFunnel(deals,preset){
   var dt=new google.visualization.DataTable();
   dt.addColumn('string','Етап');dt.addColumn('number','Відкриті');dt.addColumn('number','Виграні');dt.addColumn('number','Програні');
   stages.forEach(function(s){var c=counts[s.id];dt.addRow([s.name,c.open||0,c.won||0,c.lost||0]);});
-  box.innerHTML='<div class="chart-title">Воронка КП по етапах</div><div id="chart-funnel-canvas" style="height:320px"></div>';
+  box.innerHTML='<div class="chart-title">🎯 Воронка КП по етапах<span class="hint">де застрягли угоди</span></div><div id="chart-funnel-canvas" style="height:340px"></div>';
   box.style.display='block';
-  new google.visualization.ColumnChart(document.getElementById('chart-funnel-canvas')).draw(dt,{
-    isStacked:true,legend:{position:'top'},colors:['#3498db','#27ae60','#e74c3c'],
-    chartArea:{width:'85%',height:'70%'},hAxis:{slantedText:true,slantedTextAngle:25}
-  });
+  new google.visualization.ColumnChart(document.getElementById('chart-funnel-canvas')).draw(dt,chartOpts({
+    isStacked:true,colors:[CHART_COLORS.primary,CHART_COLORS.success,CHART_COLORS.danger],bar:{groupWidth:'62%'},
+    hAxis:{slantedText:true,slantedTextAngle:20,textStyle:{fontSize:11,color:'#6b7280'}}
+  }));
 }
 
 var _lossDealsCache={};
@@ -445,10 +458,10 @@ function renderLossReasons(deals){
   });
   var dt=new google.visualization.DataTable();dt.addColumn('string','Причина');dt.addColumn('number','Угод');
   Object.keys(byReason).forEach(function(k){dt.addRow([k,byReason[k]]);});
-  box.innerHTML='<div class="chart-title">Причини програшу (клік — коментарі)</div><div id="chart-loss-canvas" style="height:320px;cursor:pointer"></div>';
+  box.innerHTML='<div class="chart-title">❌ Причини програшу<span class="hint">клік по сектору — коментарі</span></div><div id="chart-loss-canvas" style="height:340px;cursor:pointer"></div>';
   box.style.display='block';
   var chart=new google.visualization.PieChart(document.getElementById('chart-loss-canvas'));
-  chart.draw(dt,{pieHole:0.4,chartArea:{width:'90%',height:'80%'},legend:{position:'right',textStyle:{fontSize:11}}});
+  chart.draw(dt,chartOpts({pieHole:0.5,legend:{position:'right',textStyle:{fontSize:11,color:'#4b5563'}},chartArea:{left:16,right:140,top:16,bottom:16},colors:['#ef4444','#f59e0b','#f97316','#dc2626','#fb7185','#fda4af','#991b1b','#b45309','#c2410c']}));
   google.visualization.events.addListener(chart,'select',function(){
     var sel=chart.getSelection();if(!sel.length)return;
     var reason=dt.getValue(sel[0].row,0);showLossComments(reason);
@@ -483,12 +496,13 @@ function renderMonthlyTrend(deals){
   var dt=new google.visualization.DataTable();
   dt.addColumn('string','Місяць');dt.addColumn('number','Створено');dt.addColumn('number','Виграно');dt.addColumn('number','Програно');
   keys.forEach(function(k){var m=months[k];dt.addRow([k,m.created,m.won,m.lost]);});
-  box.innerHTML='<div class="chart-title">Динаміка КП по місяцях</div><div id="chart-monthly-canvas" style="height:320px"></div>';
+  box.innerHTML='<div class="chart-title">📈 Динаміка КП по місяцях<span class="hint">створено vs виграно vs програно</span></div><div id="chart-monthly-canvas" style="height:340px"></div>';
   box.style.display='block';
-  new google.visualization.LineChart(document.getElementById('chart-monthly-canvas')).draw(dt,{
-    colors:['#333','#27ae60','#e74c3c'],legend:{position:'top'},
-    chartArea:{width:'88%',height:'72%'},pointSize:5,curveType:'function'
-  });
+  new google.visualization.LineChart(document.getElementById('chart-monthly-canvas')).draw(dt,chartOpts({
+    colors:[CHART_COLORS.gray,CHART_COLORS.success,CHART_COLORS.danger],
+    pointSize:6,pointShape:'circle',curveType:'function',lineWidth:2.5,
+    chartArea:{left:52,right:24,top:40,bottom:40}
+  }));
 }
 
 function renderConvByManager(deals){
@@ -504,13 +518,15 @@ function renderConvByManager(deals){
   var dt=new google.visualization.DataTable();
   dt.addColumn('string','Менеджер');dt.addColumn('number','Виграні');dt.addColumn('number','Програні');dt.addColumn('number','Відкриті');dt.addColumn({type:'string',role:'annotation'});
   rows.forEach(function(m){dt.addRow([m.name,m.won,m.lost,m.open,m.winRate+'%']);});
-  box.innerHTML='<div class="chart-title">Конверсія по менеджерах (win-rate %)</div><div id="chart-mgr-canvas" style="height:360px"></div>';
+  box.innerHTML='<div class="chart-title">👥 Конверсія по менеджерах<span class="hint">win-rate % над стовпчиком</span></div><div id="chart-mgr-canvas" style="height:380px"></div>';
   box.style.display='block';
-  new google.visualization.ColumnChart(document.getElementById('chart-mgr-canvas')).draw(dt,{
-    isStacked:true,colors:['#27ae60','#e74c3c','#3498db'],legend:{position:'top'},
-    chartArea:{width:'85%',height:'65%'},hAxis:{slantedText:true,slantedTextAngle:30},
-    annotations:{alwaysOutside:true,textStyle:{fontSize:11,color:'#333'}}
-  });
+  new google.visualization.ColumnChart(document.getElementById('chart-mgr-canvas')).draw(dt,chartOpts({
+    isStacked:true,colors:[CHART_COLORS.success,CHART_COLORS.danger,CHART_COLORS.primary],
+    bar:{groupWidth:'62%'},
+    hAxis:{slantedText:true,slantedTextAngle:30,textStyle:{fontSize:11,color:'#6b7280'}},
+    annotations:{alwaysOutside:true,textStyle:{fontSize:11,color:'#374151',bold:true}},
+    chartArea:{left:48,right:24,top:40,bottom:100}
+  }));
 }
 
 function renderHeatmapStageManager(deals,preset){
@@ -525,7 +541,7 @@ function renderHeatmapStageManager(deals,preset){
   });
   if(!mgrList.length){box.style.display='none';return;}
   var max=0;mgrList.forEach(function(m){stages.forEach(function(s){var v=mgrs[m][s.id]||0;if(v>max)max=v;});});
-  var html='<div class="chart-title">Карта: Менеджер × Етап (де застрягли КП)</div><div style="overflow-x:auto"><table class="heatmap-table"><thead><tr><th>Менеджер</th>';
+  var html='<div class="chart-title">🔥 Карта: Менеджер × Етап<span class="hint">де кладовища угод</span></div><div style="overflow-x:auto"><table class="heatmap-table"><thead><tr><th>Менеджер</th>';
   stages.forEach(function(s){html+='<th>'+esc(s.name)+'</th>';});html+='<th>Всього</th></tr></thead><tbody>';
   mgrList.forEach(function(m){
     html+='<tr><td class="mgr">'+esc(m)+'</td>';var total=0;
