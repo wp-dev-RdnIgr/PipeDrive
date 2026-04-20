@@ -93,7 +93,7 @@ var PRESET_REPORTS = [
   {
     id:'commercial_proposals',
     name:'Комерційні пропозиції',
-    icon:'💼',
+    icon:'КП',
     description:'Воронка КП, причини програшу, конверсія менеджерів',
     enhanced:true,
     funnelStages:[

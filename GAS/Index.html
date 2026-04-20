@@ -12,12 +12,12 @@
     </header>
 
     <section id="presets-panel" class="panel">
-      <h2><span class="icon">⭐</span> Готові звіти</h2>
+      <h2>Готові звіти</h2>
       <div id="preset-cards" class="preset-cards"></div>
     </section>
 
     <section id="refresh-panel" class="panel">
-      <h2><span class="icon">🔄</span> Оновлення даних</h2>
+      <h2>Оновлення даних</h2>
       <div class="refresh-row">
         <label>Період:</label>
         <input type="date" id="date-from" class="date-input" />
@@ -28,7 +28,7 @@
     </section>
 
     <section id="filter-panel" class="panel">
-      <h2><span class="icon">🔍</span> Фільтри</h2>
+      <h2>Фільтри</h2>
       <div id="filter-rows"></div>
       <div class="filter-actions">
         <button id="btn-add" onclick="addFilterRow()">+ Додати умову</button>
@@ -97,12 +97,12 @@
         <h2>Оновлення бази даних</h2>
         <p class="sync-hint">Синхронізація всіх даних з Pipedrive.<br>Зазвичай займає ~2-3 хвилини.</p>
         <div class="sync-entities">
-          <div>📊 Угоди (deals)</div>
-          <div>👤 Контакти (persons)</div>
-          <div>🏢 Організації (organizations)</div>
-          <div>📋 Активності (activities)</div>
-          <div>📦 Продукти (products)</div>
-          <div>📝 Нотатки (notes)</div>
+          <div>Угоди (deals)</div>
+          <div>Контакти (persons)</div>
+          <div>Організації (organizations)</div>
+          <div>Активності (activities)</div>
+          <div>Продукти (products)</div>
+          <div>Нотатки (notes)</div>
         </div>
       </div>
       <div id="sync-result" style="display:none">
@@ -118,7 +118,7 @@
   <!-- Debug Modal -->
   <div id="debug-modal" class="modal" style="display:none">
     <div class="modal-content" style="max-width:900px;text-align:left">
-      <h2>🔍 Debug: Report Query</h2>
+      <h2>Debug: Report Query</h2>
       <h3 style="font-size:13px;margin:12px 0 4px;color:var(--gray-600)">Вхідні фільтри:</h3>
       <pre id="debug-filters" style="background:var(--gray-50);padding:12px;border-radius:6px;overflow-x:auto;font-size:12px;max-height:150px;border:1px solid var(--gray-100)"></pre>
       <h3 style="font-size:13px;margin:12px 0 4px;color:var(--gray-600)">SQL-запит:</h3>

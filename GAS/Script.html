@@ -52,16 +52,19 @@ function refreshData(){
     document.getElementById('sync-progress').style.display='none';
     document.getElementById('sync-result').style.display='block';
     if(r.error){
-      document.getElementById('sync-result-icon').textContent='❌';
+      document.getElementById('sync-result-icon').className='state-badge error';
+      document.getElementById('sync-result-icon').textContent='Error';
       document.getElementById('sync-result-title').textContent='Помилка синхронізації';
-      document.getElementById('sync-result-table').innerHTML='<p style="color:#c00">'+r.error+'</p>';
+      document.getElementById('sync-result-table').innerHTML='<p style="color:var(--danger)">'+esc(r.error)+'</p>';
       return;
     }
     var results=r.results||[];
     var totalAll=results.reduce(function(s,x){return s+x.inserted;},0);
     var errAll=results.reduce(function(s,x){return s+x.errors;},0);
     var elapsed=results.reduce(function(s,x){return s+(x.elapsed||0);},0);
-    document.getElementById('sync-result-icon').textContent=errAll>0?'⚠️':'✅';
+    var badge=document.getElementById('sync-result-icon');
+    badge.className='state-badge '+(errAll>0?'warning':'success');
+    badge.textContent=errAll>0?'Warn':'OK';
     document.getElementById('sync-result-title').textContent=totalAll.toLocaleString('uk-UA')+' записів синхронізовано';
     var html='<table><tr><th>Сутність</th><th>Записів</th><th>Успіх</th></tr>';
     results.forEach(function(res){
@@ -76,9 +79,10 @@ function refreshData(){
   }).withFailureHandler(function(e){
     document.getElementById('sync-progress').style.display='none';
     document.getElementById('sync-result').style.display='block';
-    document.getElementById('sync-result-icon').textContent='❌';
+    document.getElementById('sync-result-icon').className='state-badge error';
+    document.getElementById('sync-result-icon').textContent='Error';
     document.getElementById('sync-result-title').textContent='Помилка';
-    document.getElementById('sync-result-table').innerHTML='<p>'+e.message+'</p>';
+    document.getElementById('sync-result-table').innerHTML='<p>'+esc(e.message||String(e))+'</p>';
   }).refreshAllData(df,dt);
 }
 function closeSyncModal(){document.getElementById('sync-modal').style.display='none';}
@@ -90,13 +94,13 @@ function initPresets(){
   if(!wrap)return;
   wrap.innerHTML='';
   var clearBtn=document.createElement('div');
-  clearBtn.className='preset-card clear';clearBtn.innerHTML='<span style="font-size:16px">✖</span><div><div class="preset-name">Без шаблону</div><div class="preset-desc">Ручні фільтри</div></div>';
+  clearBtn.className='preset-card clear';clearBtn.innerHTML='<div><div class="preset-name">Без шаблону</div><div class="preset-desc">Ручні фільтри</div></div>';
   clearBtn.onclick=function(){applyPreset(null);};
   wrap.appendChild(clearBtn);
   presets.forEach(function(p){
     var card=document.createElement('div');card.className='preset-card';card.dataset.id=p.id;
-    var icon=p.icon||'📊';
-    card.innerHTML='<div class="preset-icon">'+icon+'</div><div><div class="preset-name">'+esc(p.name)+'</div><div class="preset-desc">'+esc(p.description||'Шаблон звіту')+'</div></div>';
+    var initials=p.icon||p.name.split(/\s+/).map(function(w){return w[0]||'';}).join('').substring(0,2).toUpperCase();
+    card.innerHTML='<div class="preset-icon">'+esc(initials)+'</div><div><div class="preset-name">'+esc(p.name)+'</div><div class="preset-desc">'+esc(p.description||'Шаблон звіту')+'</div></div>';
     card.onclick=function(){applyPreset(p.id);};
     wrap.appendChild(card);
   });
@@ -158,10 +162,10 @@ function buildSSel(opts){
       }
       var row=document.createElement('div');row.className='ssel-option';
       if(multi){
-        var chk=document.createElement('span');chk.className='ssel-check';chk.textContent=selectedSet[String(o.value)]?'☑':'☐';
+        var chk=document.createElement('span');chk.className='ssel-check'+(selectedSet[String(o.value)]?' on':'');
         row.appendChild(chk);var txt=document.createElement('span');txt.textContent=o.label;row.appendChild(txt);
         if(selectedSet[String(o.value)])row.classList.add('selected');
-        row.onclick=function(ev){ev.stopPropagation();toggleValue(o.value);chk.textContent=selectedSet[String(o.value)]?'☑':'☐';row.classList.toggle('selected');updateInput();if(opts.onChange)opts.onChange(getValue());};
+        row.onclick=function(ev){ev.stopPropagation();toggleValue(o.value);chk.classList.toggle('on',!!selectedSet[String(o.value)]);row.classList.toggle('selected');updateInput();if(opts.onChange)opts.onChange(getValue());};
       }else{
         if(String(o.value)===currentValue)row.classList.add('selected');
         row.textContent=o.label;
@@ -469,7 +473,7 @@ function renderFunnel(deals,preset){
   var dt=new google.visualization.DataTable();
   dt.addColumn('string','Етап');dt.addColumn('number','Відкриті');dt.addColumn('number','Виграні');dt.addColumn('number','Програні');
   stages.forEach(function(s){var c=counts[s.id];dt.addRow([s.name,c.open||0,c.won||0,c.lost||0]);});
-  box.innerHTML='<div class="chart-title">🎯 Воронка КП по етапах<span class="hint">де застрягли угоди</span></div><div id="chart-funnel-canvas" style="height:340px"></div>';
+  box.innerHTML='<div class="chart-title">Воронка КП по етапах<span class="hint">де застрягли угоди</span></div><div id="chart-funnel-canvas" style="height:340px"></div>';
   box.style.display='block';
   new google.visualization.ColumnChart(document.getElementById('chart-funnel-canvas')).draw(dt,chartOpts({
     isStacked:true,colors:[CHART_COLORS.primary,CHART_COLORS.success,CHART_COLORS.danger],bar:{groupWidth:'62%'},
@@ -491,7 +495,7 @@ function renderLossReasons(deals){
   });
   var dt=new google.visualization.DataTable();dt.addColumn('string','Причина');dt.addColumn('number','Угод');
   Object.keys(byReason).forEach(function(k){dt.addRow([k,byReason[k]]);});
-  box.innerHTML='<div class="chart-title">❌ Причини програшу<span class="hint">клік по сектору — коментарі</span></div><div id="chart-loss-canvas" style="height:420px;cursor:pointer"></div>';
+  box.innerHTML='<div class="chart-title">Причини програшу<span class="hint">клік по сектору — коментарі</span></div><div id="chart-loss-canvas" style="height:420px;cursor:pointer"></div>';
   box.style.display='block';
   var chart=new google.visualization.PieChart(document.getElementById('chart-loss-canvas'));
   chart.draw(dt,chartOpts({
@@ -536,7 +540,7 @@ function renderMonthlyTrend(deals){
   var dt=new google.visualization.DataTable();
   dt.addColumn('string','Місяць');dt.addColumn('number','Створено');dt.addColumn('number','Виграно');dt.addColumn('number','Програно');
   keys.forEach(function(k){var m=months[k];dt.addRow([k,m.created,m.won,m.lost]);});
-  box.innerHTML='<div class="chart-title">📈 Динаміка КП по місяцях<span class="hint">створено vs виграно vs програно</span></div><div id="chart-monthly-canvas" style="height:340px"></div>';
+  box.innerHTML='<div class="chart-title">Динаміка КП по місяцях<span class="hint">створено vs виграно vs програно</span></div><div id="chart-monthly-canvas" style="height:340px"></div>';
   box.style.display='block';
   new google.visualization.LineChart(document.getElementById('chart-monthly-canvas')).draw(dt,chartOpts({
     colors:[CHART_COLORS.gray,CHART_COLORS.success,CHART_COLORS.danger],
@@ -558,7 +562,7 @@ function renderConvByManager(deals){
   var dt=new google.visualization.DataTable();
   dt.addColumn('string','Менеджер');dt.addColumn('number','Виграні');dt.addColumn('number','Програні');dt.addColumn('number','Відкриті');dt.addColumn({type:'string',role:'annotation'});
   rows.forEach(function(m){dt.addRow([m.name,m.won,m.lost,m.open,m.winRate+'%']);});
-  box.innerHTML='<div class="chart-title">👥 Конверсія по менеджерах<span class="hint">win-rate % над стовпчиком</span></div><div id="chart-mgr-canvas" style="height:380px"></div>';
+  box.innerHTML='<div class="chart-title">Конверсія по менеджерах<span class="hint">win-rate % над стовпчиком</span></div><div id="chart-mgr-canvas" style="height:380px"></div>';
   box.style.display='block';
   new google.visualization.ColumnChart(document.getElementById('chart-mgr-canvas')).draw(dt,chartOpts({
     isStacked:true,colors:[CHART_COLORS.success,CHART_COLORS.danger,CHART_COLORS.primary],
@@ -581,7 +585,7 @@ function renderHeatmapStageManager(deals,preset){
   });
   if(!mgrList.length){box.style.display='none';return;}
   var max=0;mgrList.forEach(function(m){stages.forEach(function(s){var v=mgrs[m][s.id]||0;if(v>max)max=v;});});
-  var html='<div class="chart-title">🔥 Карта: Менеджер × Етап<span class="hint">де кладовища угод</span></div><div style="overflow-x:auto"><table class="heatmap-table"><thead><tr><th>Менеджер</th>';
+  var html='<div class="chart-title">Менеджер × Етап<span class="hint">де кладовища угод</span></div><div style="overflow-x:auto"><table class="heatmap-table"><thead><tr><th>Менеджер</th>';
   stages.forEach(function(s){html+='<th>'+esc(s.name)+'</th>';});html+='<th>Всього</th></tr></thead><tbody>';
   mgrList.forEach(function(m){
     html+='<tr><td class="mgr">'+esc(m)+'</td>';var total=0;
