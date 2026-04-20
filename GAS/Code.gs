@@ -56,8 +56,47 @@ function askAI(userPrompt) {
 }
 
 function buildAISchema() {
-  // Placeholder — filled in by the next commit (schema builder).
-  return 'SCHEMA_PLACEHOLDER';
+  var lines = [];
+  lines.push('=== ПОЛЯ (field_id, label, type) ===');
+  FIELDS.forEach(function(f) {
+    var line = f.field_id + '  ' + f.label + '  [' + f.type + ']';
+    if (f.options && f.options.length) {
+      var opts = f.options.slice(0, 30).map(function(o){return o.id + '=' + o.label;}).join(' | ');
+      line += '  options: ' + opts + (f.options.length > 30 ? ' ...' : '');
+    }
+    line += '  ops: ' + (f.operators || []).join(',');
+    lines.push(line);
+  });
+
+  lines.push('');
+  lines.push('=== ВОРОНКИ (pipeline_id=12460) ===');
+  PIPELINES.forEach(function(p){ lines.push(p.id + '  ' + p.name); });
+
+  lines.push('');
+  lines.push('=== ЕТАПИ (stage_id=12462, по воронках) ===');
+  PIPELINES.forEach(function(p){
+    (STAGES[p.id] || []).forEach(function(s){
+      lines.push(s.id + '  [' + p.name + ']  ' + s.name);
+    });
+  });
+
+  lines.push('');
+  lines.push('=== КОРИСТУВАЧІ (owner_id=12455, creator=12454, c_kp_specialist=12528) ===');
+  USERS.filter(function(u){return u.active;}).forEach(function(u){
+    lines.push(u.id + '  ' + u.name);
+  });
+
+  lines.push('');
+  lines.push('=== ПРИКЛАДИ ===');
+  lines.push('Запит: "КП за 2026 рік"');
+  lines.push('Відповідь: {"filters":[{"field_id":12465,"operator":">=","value":"2026-01-01"},{"field_id":12465,"operator":"<=","value":"2026-12-31"},{"field_id":12462,"operator":"IN","value":[8,9,10,11,13,14]}],"explanation":"Комерційні пропозиції за 2026 рік на етапах КП воронки Теплі ліди"}');
+  lines.push('');
+  lines.push('Запит: "Угоди Karina Tkach за останні 30 днів в Україні"');
+  lines.push('Відповідь: {"filters":[{"field_id":12455,"operator":"=","value":22953971},{"field_id":12465,"operator":">=","value":"<сьогодні-30д>"},{"field_id":12465,"operator":"<=","value":"<сьогодні>"},{"field_id":12463,"operator":"=","value":22}],"explanation":"Угоди Karina Tkach за 30 днів в Україні"}');
+  lines.push('');
+  lines.push('Для відносних дат повертай справжні ISO-дати (YYYY-MM-DD), обчислені від СЬОГОДНІ=' + Utilities.formatDate(new Date(), 'UTC', 'yyyy-MM-dd') + '.');
+
+  return lines.join('\n');
 }
 
 function doGet(e) {
