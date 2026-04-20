@@ -589,11 +589,50 @@ var TABLE_COLS=[
 
 function getActiveCols(){return window._presetColumns||TABLE_COLS;}
 
+var PAGE_SIZE=50,currentPage=1;
 function renderTable(deals){
   var cols=getActiveCols();
   document.getElementById('deals-thead').innerHTML='<tr>'+cols.map(function(c){return '<th onclick="sortTable(\''+c.key+'\')">'+c.label+'<span class="sort-icon" id="si-'+c.key+'"></span></th>';}).join('')+'</tr>';
-  fillTableBody(deals);
+  var badge=document.getElementById('table-count');if(badge)badge.textContent=(deals||[]).length.toLocaleString('uk-UA')+' угод';
+  currentPage=1;
+  renderPage(deals);
 }
+function renderPage(deals){
+  var total=(deals||[]).length;
+  var pages=Math.max(1,Math.ceil(total/PAGE_SIZE));
+  if(currentPage>pages)currentPage=pages;
+  var start=(currentPage-1)*PAGE_SIZE;var end=Math.min(start+PAGE_SIZE,total);
+  fillTableBody((deals||[]).slice(start,end));
+  renderPagination(total,pages,start,end);
+}
+function renderPagination(total,pages,start,end){
+  var el=document.getElementById('pagination');if(!el)return;
+  if(total<=PAGE_SIZE){el.innerHTML='';el.style.display='none';return;}
+  el.style.display='flex';
+  var info='<span class="info">'+(total?(start+1):0)+'–'+end+' з '+total.toLocaleString('uk-UA')+'</span>';
+  var ctrl='<div class="controls">';
+  ctrl+='<button class="page-btn" onclick="gotoPage(1)" '+(currentPage===1?'disabled':'')+'>«</button>';
+  ctrl+='<button class="page-btn" onclick="gotoPage('+(currentPage-1)+')" '+(currentPage===1?'disabled':'')+'>‹</button>';
+  var pageNums=buildPageNumbers(currentPage,pages);
+  pageNums.forEach(function(n){
+    if(n==='...')ctrl+='<span class="page-ellipsis">…</span>';
+    else ctrl+='<button class="page-btn '+(n===currentPage?'current':'')+'" onclick="gotoPage('+n+')">'+n+'</button>';
+  });
+  ctrl+='<button class="page-btn" onclick="gotoPage('+(currentPage+1)+')" '+(currentPage===pages?'disabled':'')+'>›</button>';
+  ctrl+='<button class="page-btn" onclick="gotoPage('+pages+')" '+(currentPage===pages?'disabled':'')+'>»</button>';
+  ctrl+='</div>';
+  el.innerHTML=info+ctrl;
+}
+function buildPageNumbers(cur,total){
+  if(total<=7){var a=[];for(var i=1;i<=total;i++)a.push(i);return a;}
+  var r=[1];
+  if(cur>3)r.push('...');
+  for(var i=Math.max(2,cur-1);i<=Math.min(total-1,cur+1);i++)r.push(i);
+  if(cur<total-2)r.push('...');
+  r.push(total);return r;
+}
+function gotoPage(n){if(!lastData||!lastData.deals)return;var pages=Math.max(1,Math.ceil(lastData.deals.length/PAGE_SIZE));if(n<1||n>pages)return;currentPage=n;renderPage(lastData.deals);window.scrollTo({top:document.querySelector('.table-wrap').offsetTop-20,behavior:'smooth'});}
+
 function fillTableBody(deals){
   var cols=getActiveCols();
   document.getElementById('deals-tbody').innerHTML=deals.map(function(d){
@@ -614,7 +653,7 @@ function sortTable(col){
   document.querySelectorAll('.sort-icon').forEach(function(s){s.textContent='';});
   var icon=document.getElementById('si-'+col);if(icon)icon.textContent=sortDir==='asc'?' ▲':' ▼';
   lastData.deals.sort(function(a,b){var va=a[col]||'',vb=b[col]||'';if(typeof va==='number')return sortDir==='asc'?va-vb:vb-va;return sortDir==='asc'?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));});
-  fillTableBody(lastData.deals);
+  currentPage=1;renderPage(lastData.deals);
 }
 
 function formatMoney(v){if(v===null||v===undefined||v==='')return'—';return new Intl.NumberFormat('uk-UA',{maximumFractionDigits:0}).format(Number(v));}
