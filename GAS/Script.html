@@ -186,7 +186,13 @@ function addFilterRowWithData(data){
   addFilterRow();var rows=document.querySelectorAll('.filter-row');var row=rows[rows.length-1];
   var fs=row.querySelector('.field-select');fs.value=data.field_id;fs.onchange();
   var os=row.querySelector('.operator-select');os.value=data.operator;if(os.onchange)os.onchange();
-  var vc=row.querySelector('.value-container');var inp=vc.querySelector('select,input');
+  if(data.value===''||data.value===undefined||data.value===null)return;
+  var vc=row.querySelector('.value-container');
+  var sselEl=vc.querySelector('.ssel');
+  if(sselEl&&typeof sselEl.setValue==='function'){sselEl.setValue(data.value);return;}
+  var hidden=vc.querySelector('.pill-value');
+  if(hidden){var btn=vc.querySelector('.pill[data-val="'+data.value+'"]');if(btn)btn.click();return;}
+  var inp=vc.querySelector('select,input');
   if(inp)inp.value=data.value;
 }
 function onFieldChange(row,fs,os,vc){
@@ -197,23 +203,102 @@ function onFieldChange(row,fs,os,vc){
   os.onchange=function(){renderValue(field,os.value,vc);};
   renderValue(field,field.operators[0],vc);
 }
+// ===== DATE PRESETS =====
+function ymd(d){var m=String(d.getMonth()+1).padStart(2,'0');var day=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+day;}
+function datePresets(){
+  var now=new Date();var y=now.getFullYear();var m=now.getMonth();
+  var startWeek=new Date(now);startWeek.setDate(now.getDate()-((now.getDay()+6)%7));
+  var startQuarter=new Date(y,Math.floor(m/3)*3,1);
+  var lastMonthStart=new Date(y,m-1,1),lastMonthEnd=new Date(y,m,0);
+  var lastQStart=new Date(y,Math.floor(m/3)*3-3,1),lastQEnd=new Date(y,Math.floor(m/3)*3,0);
+  return [
+    {key:'today',label:'Сьогодні',from:ymd(now),to:ymd(now)},
+    {key:'week',label:'Цей тиждень',from:ymd(startWeek),to:ymd(now)},
+    {key:'month',label:'Цей місяць',from:ymd(new Date(y,m,1)),to:ymd(now)},
+    {key:'quarter',label:'Цей квартал',from:ymd(startQuarter),to:ymd(now)},
+    {key:'year',label:'Цей рік',from:y+'-01-01',to:y+'-12-31'},
+    {key:'last7',label:'7 днів',from:ymd(new Date(Date.now()-6*864e5)),to:ymd(now)},
+    {key:'last30',label:'30 днів',from:ymd(new Date(Date.now()-29*864e5)),to:ymd(now)},
+    {key:'last90',label:'90 днів',from:ymd(new Date(Date.now()-89*864e5)),to:ymd(now)},
+    {key:'prevMonth',label:'Попередній місяць',from:ymd(lastMonthStart),to:ymd(lastMonthEnd)},
+    {key:'prevQuarter',label:'Попередній квартал',from:ymd(lastQStart),to:ymd(lastQEnd)},
+    {key:'prevYear',label:'Попередній рік',from:(y-1)+'-01-01',to:(y-1)+'-12-31'}
+  ];
+}
+
 function renderValue(field,op,vc){
   vc.innerHTML='';
   if(op==='IS NULL'||op==='IS NOT NULL')return;
-  if(field.field_id===12511 && productNames.length){var sel=document.createElement('select');sel.innerHTML='<option value="">— Оберіть товар —</option>';productNames.forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o);});vc.appendChild(sel);return;}
-  if(field.type==='date'){var d1=document.createElement('input');d1.type='date';d1.className='date-from';var d2=document.createElement('input');d2.type='date';d2.className='date-to';vc.appendChild(d1);vc.appendChild(d2);return;}
-  if(field.options&&field.options.length){
-    // Fields stored as label (string) in DB, not as ID
-    var labelFields=[12475]; // lost_reason
-    var useLabel=labelFields.indexOf(field.field_id)>=0;
-    var sel=document.createElement('select');
-    field.options.forEach(function(o){var opt=document.createElement('option');opt.value=useLabel?o.label:o.id;opt.textContent=o.label;sel.appendChild(opt);});
-    vc.appendChild(sel);return;
+
+  // ---- DATE: two inputs + preset chips ----
+  if(field.type==='date'){
+    var rangeRow=document.createElement('div');rangeRow.className='date-range-row';
+    var d1=document.createElement('input');d1.type='date';d1.className='date-from';
+    var sep=document.createElement('span');sep.textContent='—';
+    var d2=document.createElement('input');d2.type='date';d2.className='date-to';
+    rangeRow.appendChild(d1);rangeRow.appendChild(sep);rangeRow.appendChild(d2);
+    var chips=document.createElement('div');chips.className='date-presets';
+    datePresets().forEach(function(p){
+      var b=document.createElement('button');b.type='button';b.className='date-preset-btn';b.textContent=p.label;
+      b.onclick=function(){
+        d1.value=p.from;d2.value=p.to;
+        chips.querySelectorAll('.date-preset-btn').forEach(function(x){x.classList.remove('active');});
+        b.classList.add('active');
+      };
+      chips.appendChild(b);
+    });
+    [d1,d2].forEach(function(el){el.oninput=function(){chips.querySelectorAll('.date-preset-btn').forEach(function(x){x.classList.remove('active');});};});
+    vc.appendChild(rangeRow);vc.appendChild(chips);return;
   }
-  if(field.type==='pipeline'){var sel=document.createElement('select');pipelines.forEach(function(p){var o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o);});vc.appendChild(sel);return;}
-  if(field.type==='stage'){var sel=document.createElement('select');pipelines.forEach(function(p){var og=document.createElement('optgroup');og.label=p.name;(stages[p.id]||[]).forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name;og.appendChild(o);});sel.appendChild(og);});vc.appendChild(sel);return;}
-  if(field.type==='user'){var sel=document.createElement('select');var ag=document.createElement('optgroup');ag.label='Активні';var ig=document.createElement('optgroup');ig.label='Неактивні';users.forEach(function(u){var o=document.createElement('option');o.value=u.id;o.textContent=u.name;(u.active?ag:ig).appendChild(o);});sel.appendChild(ag);sel.appendChild(ig);vc.appendChild(sel);return;}
-  if(field.type==='int'||field.type==='monetary'){var inp=document.createElement('input');inp.type='number';vc.appendChild(inp);return;}
+
+  // ---- STATUS: colored pills (single-select) ----
+  if(field.field_id===12464 && field.options&&field.options.length){
+    var pg=document.createElement('div');pg.className='pill-group';var hidden=document.createElement('input');hidden.type='hidden';hidden.className='pill-value';
+    field.options.forEach(function(o){
+      var p=document.createElement('button');p.type='button';p.className='pill '+(o.id==='won'?'opt-won':o.id==='lost'?'opt-lost':'opt-open');p.textContent=o.label;p.dataset.val=o.id;
+      p.onclick=function(){pg.querySelectorAll('.pill').forEach(function(x){x.classList.remove('active','won','lost','open');});p.classList.add('active');if(o.id==='won')p.classList.add('won');else if(o.id==='lost')p.classList.add('lost');else p.classList.add('open');hidden.value=o.id;};
+      pg.appendChild(p);
+    });
+    vc.appendChild(pg);vc.appendChild(hidden);return;
+  }
+
+  // ---- PRODUCT NAME: searchable select ----
+  if(field.field_id===12511 && productNames.length){
+    var opts=productNames.map(function(n){return {value:n,label:n};});
+    vc.appendChild(buildSSel({options:opts,placeholder:'— Оберіть товар —'}));return;
+  }
+
+  // ---- ENUM with field.options: searchable select (label if lost_reason) ----
+  if(field.options&&field.options.length){
+    var labelFields=[12475];
+    var useLabel=labelFields.indexOf(field.field_id)>=0;
+    var ops=field.options.map(function(o){return {value:useLabel?o.label:o.id,label:o.label};});
+    vc.appendChild(buildSSel({options:ops,placeholder:'— Оберіть значення —'}));return;
+  }
+
+  // ---- PIPELINE ----
+  if(field.type==='pipeline'){
+    var ops=pipelines.map(function(p){return {value:p.id,label:p.name};});
+    vc.appendChild(buildSSel({options:ops,placeholder:'— Оберіть воронку —'}));return;
+  }
+
+  // ---- STAGE (cascaded via optgroup) ----
+  if(field.type==='stage'){
+    var ops=[];pipelines.forEach(function(p){(stages[p.id]||[]).forEach(function(s){ops.push({value:s.id,label:s.name,group:p.name});});});
+    vc.appendChild(buildSSel({options:ops,placeholder:'— Оберіть етап —'}));return;
+  }
+
+  // ---- USER (active/inactive groups) ----
+  if(field.type==='user'){
+    var ops=[];users.filter(function(u){return u.active;}).forEach(function(u){ops.push({value:u.id,label:u.name,group:'Активні'});});
+    users.filter(function(u){return !u.active;}).forEach(function(u){ops.push({value:u.id,label:u.name,group:'Неактивні'});});
+    vc.appendChild(buildSSel({options:ops,placeholder:'— Оберіть користувача —'}));return;
+  }
+
+  // ---- NUMBERS ----
+  if(field.type==='int'||field.type==='monetary'){var inp=document.createElement('input');inp.type='number';inp.placeholder=field.type==='monetary'?'0':'';vc.appendChild(inp);return;}
+
+  // ---- DEFAULT: text ----
   var inp=document.createElement('input');inp.type='text';inp.placeholder='Введіть значення...';vc.appendChild(inp);
 }
 function collectConditions(){
@@ -223,9 +308,21 @@ function collectConditions(){
     var os=rows[i].querySelector('.operator-select');if(!fs.value)continue;
     var fid=parseInt(fs.value);var op=os.value;var field=fields.find(function(f){return f.field_id===fid;});
     if(op==='IS NULL'||op==='IS NOT NULL'){conds.push({field_id:fid,operator:op,value:'',extra_value:null});continue;}
-    if(field&&field.type==='date'){var d1=rows[i].querySelector('.date-from');var d2=rows[i].querySelector('.date-to');if(d1&&d1.value)conds.push({field_id:fid,operator:'>=',value:d1.value,extra_value:null});if(d2&&d2.value)conds.push({field_id:fid,operator:'<=',value:d2.value,extra_value:null});continue;}
-    var inp=rows[i].querySelector('.value-container select, .value-container input');
-    if(inp&&inp.value)conds.push({field_id:fid,operator:op,value:inp.value,extra_value:null});
+    if(field&&field.type==='date'){
+      var d1=rows[i].querySelector('.date-from');var d2=rows[i].querySelector('.date-to');
+      if(d1&&d1.value)conds.push({field_id:fid,operator:'>=',value:d1.value,extra_value:null});
+      if(d2&&d2.value)conds.push({field_id:fid,operator:'<=',value:d2.value,extra_value:null});
+      continue;
+    }
+    var val='';
+    var sselEl=rows[i].querySelector('.value-container .ssel');
+    if(sselEl&&typeof sselEl.getValue==='function')val=sselEl.getValue();
+    else{
+      var hidden=rows[i].querySelector('.value-container .pill-value');
+      if(hidden)val=hidden.value;
+      else{var inp=rows[i].querySelector('.value-container select, .value-container input');if(inp)val=inp.value;}
+    }
+    if(val!=='')conds.push({field_id:fid,operator:op,value:val,extra_value:null});
   }
   if(conds.length>16){showError('Максимум 16 умов');return null;}
   if(conds.length===0){showError('Додайте хоча б одну умову');return null;}
