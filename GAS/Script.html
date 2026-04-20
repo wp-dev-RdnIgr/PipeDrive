@@ -1,4 +1,9 @@
 <script>
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===name);});
+  document.getElementById('view-report').style.display=name==='report'?'block':'none';
+  document.getElementById('view-ai').style.display=name==='ai'?'block':'none';
+}
 var fields=[],pipelines=[],users=[],stages={},opLabels={},presets=[],lastData=null,sortCol=null,sortDir='asc';
 var productNames=[];
 window._presetOrConditions=[];window._presetColumns=null;
