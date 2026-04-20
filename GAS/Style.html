@@ -58,13 +58,10 @@ header h1{font-size:22px;font-weight:700;color:var(--gray-900);letter-spacing:-.
 .value-container{flex:1;min-width:200px;display:flex;flex-direction:column;gap:6px}
 .value-container input,.value-container select,.value-container .search-input{padding:8px 10px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;background:#fff;width:100%;font-family:inherit;transition:var(--transition);min-height:36px}
 .value-container input:focus,.value-container select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
-.date-range-row{display:flex;gap:6px;align-items:center}
-.date-range-row input{flex:1}
+.date-range-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.date-range-row input[type="date"]{width:150px;flex:0 0 auto}
+.date-range-row .ssel.ssel-date{width:200px;flex:0 0 auto}
 .date-range-row span{color:var(--gray-400);font-size:12px}
-.date-presets{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
-.date-preset-btn{padding:4px 10px;border:1px solid var(--gray-200);background:#fff;border-radius:14px;font-size:11px;cursor:pointer;color:var(--gray-600);transition:var(--transition);font-family:inherit}
-.date-preset-btn:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
-.date-preset-btn.active{border-color:var(--primary);background:var(--primary);color:#fff}
 
 /* Pill selectors for status etc. */
 .pill-group{display:flex;gap:4px;flex-wrap:wrap}

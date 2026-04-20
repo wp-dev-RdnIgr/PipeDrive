@@ -252,21 +252,29 @@ function ymd(d){var m=String(d.getMonth()+1).padStart(2,'0');var day=String(d.ge
 function datePresets(){
   var now=new Date();var y=now.getFullYear();var m=now.getMonth();
   var startWeek=new Date(now);startWeek.setDate(now.getDate()-((now.getDay()+6)%7));
+  var endWeek=new Date(startWeek);endWeek.setDate(startWeek.getDate()+6);
+  var prevWeekStart=new Date(startWeek);prevWeekStart.setDate(startWeek.getDate()-7);
+  var prevWeekEnd=new Date(startWeek);prevWeekEnd.setDate(startWeek.getDate()-1);
   var startQuarter=new Date(y,Math.floor(m/3)*3,1);
   var lastMonthStart=new Date(y,m-1,1),lastMonthEnd=new Date(y,m,0);
   var lastQStart=new Date(y,Math.floor(m/3)*3-3,1),lastQEnd=new Date(y,Math.floor(m/3)*3,0);
+  var yesterday=new Date(Date.now()-864e5),tomorrow=new Date(Date.now()+864e5);
   return [
-    {key:'today',label:'Сьогодні',from:ymd(now),to:ymd(now)},
-    {key:'week',label:'Цей тиждень',from:ymd(startWeek),to:ymd(now)},
-    {key:'month',label:'Цей місяць',from:ymd(new Date(y,m,1)),to:ymd(now)},
-    {key:'quarter',label:'Цей квартал',from:ymd(startQuarter),to:ymd(now)},
-    {key:'year',label:'Цей рік',from:y+'-01-01',to:y+'-12-31'},
-    {key:'last7',label:'7 днів',from:ymd(new Date(Date.now()-6*864e5)),to:ymd(now)},
-    {key:'last30',label:'30 днів',from:ymd(new Date(Date.now()-29*864e5)),to:ymd(now)},
-    {key:'last90',label:'90 днів',from:ymd(new Date(Date.now()-89*864e5)),to:ymd(now)},
-    {key:'prevMonth',label:'Попередній місяць',from:ymd(lastMonthStart),to:ymd(lastMonthEnd)},
-    {key:'prevQuarter',label:'Попередній квартал',from:ymd(lastQStart),to:ymd(lastQEnd)},
-    {key:'prevYear',label:'Попередній рік',from:(y-1)+'-01-01',to:(y-1)+'-12-31'}
+    {value:'today',label:'Сьогодні',from:ymd(now),to:ymd(now),group:'Відносні дати'},
+    {value:'yesterday',label:'Учора',from:ymd(yesterday),to:ymd(yesterday),group:'Відносні дати'},
+    {value:'tomorrow',label:'Завтра',from:ymd(tomorrow),to:ymd(tomorrow),group:'Відносні дати'},
+    {value:'week',label:'Цей тиждень',from:ymd(startWeek),to:ymd(endWeek),group:'Відносні періоди'},
+    {value:'prevWeek',label:'Попередній тиждень',from:ymd(prevWeekStart),to:ymd(prevWeekEnd),group:'Відносні періоди'},
+    {value:'month',label:'Цей місяць',from:ymd(new Date(y,m,1)),to:ymd(new Date(y,m+1,0)),group:'Відносні періоди'},
+    {value:'prevMonth',label:'Попередній місяць',from:ymd(lastMonthStart),to:ymd(lastMonthEnd),group:'Відносні періоди'},
+    {value:'quarter',label:'Цей квартал',from:ymd(startQuarter),to:ymd(now),group:'Відносні періоди'},
+    {value:'prevQuarter',label:'Попередній квартал',from:ymd(lastQStart),to:ymd(lastQEnd),group:'Відносні періоди'},
+    {value:'year',label:'Цей рік',from:y+'-01-01',to:y+'-12-31',group:'Відносні періоди'},
+    {value:'prevYear',label:'Попередній рік',from:(y-1)+'-01-01',to:(y-1)+'-12-31',group:'Відносні періоди'},
+    {value:'last7',label:'Останні 7 днів',from:ymd(new Date(Date.now()-6*864e5)),to:ymd(now),group:'Діапазон від сьогодні'},
+    {value:'last30',label:'Останні 30 днів',from:ymd(new Date(Date.now()-29*864e5)),to:ymd(now),group:'Діапазон від сьогодні'},
+    {value:'last90',label:'Останні 90 днів',from:ymd(new Date(Date.now()-89*864e5)),to:ymd(now),group:'Діапазон від сьогодні'},
+    {value:'custom',label:'Свій період',from:'',to:'',group:''}
   ];
 }
 
@@ -274,25 +282,26 @@ function renderValue(field,op,vc){
   vc.innerHTML='';
   if(op==='IS NULL'||op==='IS NOT NULL')return;
 
-  // ---- DATE: two inputs + preset chips ----
+  // ---- DATE: preset select + two date inputs ----
   if(field.type==='date'){
     var rangeRow=document.createElement('div');rangeRow.className='date-range-row';
+    var presetsList=datePresets();
+    var sselOpts=presetsList.map(function(p){return {value:p.value,label:p.label,group:p.group};});
     var d1=document.createElement('input');d1.type='date';d1.className='date-from';
     var sep=document.createElement('span');sep.textContent='—';
     var d2=document.createElement('input');d2.type='date';d2.className='date-to';
-    rangeRow.appendChild(d1);rangeRow.appendChild(sep);rangeRow.appendChild(d2);
-    var chips=document.createElement('div');chips.className='date-presets';
-    datePresets().forEach(function(p){
-      var b=document.createElement('button');b.type='button';b.className='date-preset-btn';b.textContent=p.label;
-      b.onclick=function(){
+    var presetSel=buildSSel({
+      options:sselOpts,placeholder:'— Період —',
+      onChange:function(val){
+        var p=presetsList.find(function(x){return x.value===val;});
+        if(!p||p.value==='custom'){d1.focus();return;}
         d1.value=p.from;d2.value=p.to;
-        chips.querySelectorAll('.date-preset-btn').forEach(function(x){x.classList.remove('active');});
-        b.classList.add('active');
-      };
-      chips.appendChild(b);
+      }
     });
-    [d1,d2].forEach(function(el){el.oninput=function(){chips.querySelectorAll('.date-preset-btn').forEach(function(x){x.classList.remove('active');});};});
-    vc.appendChild(rangeRow);vc.appendChild(chips);return;
+    presetSel.classList.add('ssel-date');
+    [d1,d2].forEach(function(el){el.oninput=function(){presetSel.setValue('custom');};});
+    rangeRow.appendChild(presetSel);rangeRow.appendChild(d1);rangeRow.appendChild(sep);rangeRow.appendChild(d2);
+    vc.appendChild(rangeRow);return;
   }
 
   // ---- STATUS: colored pills (single-select) ----
