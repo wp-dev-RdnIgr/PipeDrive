@@ -104,6 +104,71 @@ function applyPreset(id){
 }
 function getActivePresetId(){return _activePresetId;}
 
+// ===== SEARCHABLE SELECT =====
+// Лёгкий dropdown с поиском, группами и экранированием.
+// opts: { placeholder, value, options: [{value,label,group?}], onChange(value,label) }
+// Returns DOM element with methods .getValue()/.setValue(v)/.getLabel().
+function buildSSel(opts){
+  opts=opts||{};
+  var wrap=document.createElement('div');wrap.className='ssel';
+  var inp=document.createElement('input');inp.type='text';inp.readOnly=true;inp.className='ssel-input';
+  inp.placeholder=opts.placeholder||'— Оберіть —';
+  var drop=document.createElement('div');drop.className='ssel-drop';
+  var searchBox=document.createElement('div');searchBox.className='ssel-search';
+  var search=document.createElement('input');search.type='text';search.placeholder='Пошук...';
+  searchBox.appendChild(search);drop.appendChild(searchBox);
+  var optsList=document.createElement('div');optsList.className='ssel-options';drop.appendChild(optsList);
+  wrap.appendChild(inp);wrap.appendChild(drop);
+  var currentValue=opts.value!==undefined?String(opts.value):'';
+  var allOptions=opts.options||[];
+
+  function render(filter){
+    filter=(filter||'').toLowerCase();
+    optsList.innerHTML='';
+    var lastGroup=null,shown=0;
+    allOptions.forEach(function(o){
+      if(filter&&String(o.label).toLowerCase().indexOf(filter)<0)return;
+      if(o.group&&o.group!==lastGroup){
+        var g=document.createElement('div');g.className='ssel-optgroup';g.textContent=o.group;
+        optsList.appendChild(g);lastGroup=o.group;
+      }
+      var row=document.createElement('div');row.className='ssel-option';
+      if(String(o.value)===currentValue)row.classList.add('selected');
+      row.textContent=o.label;
+      row.onclick=function(ev){ev.stopPropagation();setValue(o.value,o.label);close();if(opts.onChange)opts.onChange(o.value,o.label);};
+      optsList.appendChild(row);shown++;
+    });
+    if(!shown){var e=document.createElement('div');e.className='ssel-empty';e.textContent='Нічого не знайдено';optsList.appendChild(e);}
+  }
+  function setValue(v,label){
+    currentValue=v!==undefined&&v!==null?String(v):'';
+    if(label===undefined){
+      var m=allOptions.find(function(o){return String(o.value)===currentValue;});
+      label=m?m.label:'';
+    }
+    inp.value=label||'';
+  }
+  function open(){document.querySelectorAll('.ssel-drop.open').forEach(function(d){d.classList.remove('open');});drop.classList.add('open');search.value='';render('');setTimeout(function(){search.focus();},0);}
+  function close(){drop.classList.remove('open');}
+  inp.onclick=function(ev){ev.stopPropagation();if(drop.classList.contains('open'))close();else open();};
+  search.oninput=function(){render(search.value);};
+  search.onclick=function(ev){ev.stopPropagation();};
+  drop.onclick=function(ev){ev.stopPropagation();};
+
+  // init
+  if(currentValue){
+    var m=allOptions.find(function(o){return String(o.value)===currentValue;});
+    inp.value=m?m.label:'';
+  }
+  render('');
+
+  wrap.getValue=function(){return currentValue;};
+  wrap.setValue=setValue;
+  wrap.getLabel=function(){return inp.value;};
+  return wrap;
+}
+document.addEventListener('click',function(){document.querySelectorAll('.ssel-drop.open').forEach(function(d){d.classList.remove('open');});});
+
 // ===== FILTER ROWS =====
 function addFilterRow(){window._presetOrConditions=[];window._presetColumns=null;window._presetSheetFilters=null;
   var div=document.createElement('div');div.className='filter-row';
