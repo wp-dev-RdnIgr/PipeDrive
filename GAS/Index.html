@@ -9,8 +9,13 @@
   <div id="app">
     <header>
       <h1>Звіти по угодах Pipedrive</h1>
+      <nav class="tabs">
+        <button class="tab active" data-tab="report" onclick="switchTab('report')">Звіт</button>
+        <button class="tab" data-tab="ai" onclick="switchTab('ai')">AI-помічник</button>
+      </nav>
     </header>
 
+    <div id="view-report">
     <section id="presets-panel" class="panel">
       <h2>Готові звіти</h2>
       <div id="preset-cards" class="preset-cards"></div>
@@ -78,6 +83,22 @@
         <div class="pagination" id="pagination"></div>
       </div>
     </section>
+    </div>
+
+    <div id="view-ai" style="display:none">
+      <section id="ai-panel" class="panel">
+        <h2>AI-помічник</h2>
+        <p style="color:var(--gray-500);font-size:13px;margin-bottom:16px">Опишіть звіт природною мовою — наприклад «Угоди по РРС в Україні за 2026 рік» або «Комерційні пропозиції Karina Tkach за останні 30 днів». AI підбере фільтри й запустить звіт.</p>
+        <div id="ai-history" class="ai-history"></div>
+        <div class="ai-input-row">
+          <textarea id="ai-prompt" placeholder="Напишіть, який звіт вам потрібен..." rows="3"></textarea>
+          <div class="ai-actions">
+            <button id="ai-mic-btn" class="ghost mic-btn" onclick="toggleMic()" title="Голосове введення"><span class="mic-icon"></span></button>
+            <button class="primary" onclick="sendAiPrompt()" id="ai-send-btn">Згенерувати звіт</button>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 
   <!-- Loss reason comments modal -->

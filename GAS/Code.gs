@@ -1,6 +1,103 @@
 var N8N_WEBHOOK = 'https://n8n.rnd.webpromo.tools/webhook/pipedrive-report';
 var N8N_SYNC = 'https://n8n.rnd.webpromo.tools/webhook/pipedrive-sync';
 var N8N_DB = 'https://n8n.rnd.webpromo.tools/webhook/pipedrive-db';
+var ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+var AI_MODEL = 'claude-haiku-4-5-20251001';
+
+// ===== AI Assistant =====
+// Stores the Anthropic API key in Script Properties; set once via
+// setAnthropicKey('sk-ant-...') from the Apps Script editor.
+function setAnthropicKey(key) {
+  PropertiesService.getScriptProperties().setProperty('ANTHROPIC_API_KEY', key);
+  return 'OK';
+}
+
+function askAI(userPrompt) {
+  try {
+    var apiKey = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
+    if (!apiKey) return {error: 'ANTHROPIC_API_KEY не налаштовано. Запустіть setAnthropicKey("sk-ant-...").'};
+    if (!userPrompt || !userPrompt.trim()) return {error: 'Порожній запит'};
+
+    var schemaText = buildAISchema();
+    var instructions = 'Ти — асистент для побудови звітів по угодах Pipedrive. Користувач описує бажаний звіт природною мовою. Твоя задача — повернути ЛИШЕ валідний JSON без коментарів у форматі: {"filters":[{"field_id":int,"operator":"=|!=|>=|<=|>|<|LIKE|IN|IS NULL|IS NOT NULL","value":<string|number|array>}],"explanation":"коротко що саме відфільтровано"}. Правила: для дат завжди зазначай поле 12465 (add_time) якщо інше явно не сказано, з окремими фільтрами >= та <=. Для мультивибору стейджів використовуй operator:"IN" і value:[id,id,...]. Для enum полів використовуй id зі списку опцій (окрім поля 12475 lost_reason — там пиши label). Для країни (label) Україна=22, Казахстан=23. Жодних пояснень поза JSON.';
+    var resp = UrlFetchApp.fetch(ANTHROPIC_URL, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {'x-api-key': apiKey, 'anthropic-version': '2023-06-01'},
+      muteHttpExceptions: true,
+      payload: JSON.stringify({
+        model: AI_MODEL,
+        max_tokens: 1500,
+        system: [
+          {type: 'text', text: instructions},
+          {type: 'text', text: schemaText, cache_control: {type: 'ephemeral'}}
+        ],
+        messages: [{role: 'user', content: userPrompt}]
+      })
+    });
+    var code = resp.getResponseCode();
+    var body = resp.getContentText();
+    if (code >= 400) return {error: 'HTTP ' + code + ': ' + body.substring(0, 400)};
+    var data = JSON.parse(body);
+    var text = data.content && data.content[0] && data.content[0].text;
+    if (!text) return {error: 'Порожня відповідь від моделі'};
+    var m = text.match(/\{[\s\S]*\}/);
+    if (!m) return {error: 'Не знайдено JSON у відповіді', raw: text};
+    try {
+      var parsed = JSON.parse(m[0]);
+      if (!Array.isArray(parsed.filters)) return {error: 'filters має бути масивом', raw: text};
+      return {result: parsed, raw: text, usage: data.usage || null};
+    } catch (e) {
+      return {error: 'Невалідний JSON: ' + e.message, raw: text};
+    }
+  } catch (e) {
+    return {error: e.message || String(e)};
+  }
+}
+
+function buildAISchema() {
+  var lines = [];
+  lines.push('=== ПОЛЯ (field_id, label, type) ===');
+  FIELDS.forEach(function(f) {
+    var line = f.field_id + '  ' + f.label + '  [' + f.type + ']';
+    if (f.options && f.options.length) {
+      var opts = f.options.slice(0, 30).map(function(o){return o.id + '=' + o.label;}).join(' | ');
+      line += '  options: ' + opts + (f.options.length > 30 ? ' ...' : '');
+    }
+    line += '  ops: ' + (f.operators || []).join(',');
+    lines.push(line);
+  });
+
+  lines.push('');
+  lines.push('=== ВОРОНКИ (pipeline_id=12460) ===');
+  PIPELINES.forEach(function(p){ lines.push(p.id + '  ' + p.name); });
+
+  lines.push('');
+  lines.push('=== ЕТАПИ (stage_id=12462, по воронках) ===');
+  PIPELINES.forEach(function(p){
+    (STAGES[p.id] || []).forEach(function(s){
+      lines.push(s.id + '  [' + p.name + ']  ' + s.name);
+    });
+  });
+
+  lines.push('');
+  lines.push('=== КОРИСТУВАЧІ (owner_id=12455, creator=12454, c_kp_specialist=12528) ===');
+  USERS.filter(function(u){return u.active;}).forEach(function(u){
+    lines.push(u.id + '  ' + u.name);
+  });
+
+  lines.push('');
+  lines.push('=== ПРИКЛАДИ ===');
+  lines.push('Запит: "КП за 2026 рік"');
+  lines.push('Відповідь: {"filters":[{"field_id":12465,"operator":">=","value":"2026-01-01"},{"field_id":12465,"operator":"<=","value":"2026-12-31"},{"field_id":12462,"operator":"IN","value":[8,9,10,11,13,14]}],"explanation":"Комерційні пропозиції за 2026 рік на етапах КП воронки Теплі ліди"}');
+  lines.push('');
+  lines.push('Запит: "Угоди Karina Tkach за останні 30 днів в Україні"');
+  lines.push('Відповідь: {"filters":[{"field_id":12455,"operator":"=","value":22953971},{"field_id":12465,"operator":">=","value":"<сьогодні-30д>"},{"field_id":12465,"operator":"<=","value":"<сьогодні>"},{"field_id":12463,"operator":"=","value":22}],"explanation":"Угоди Karina Tkach за 30 днів в Україні"}');
+  lines.push('');
+  lines.push('Для відносних дат повертай справжні ISO-дати (YYYY-MM-DD), обчислені від СЬОГОДНІ=' + Utilities.formatDate(new Date(), 'UTC', 'yyyy-MM-dd') + '.');
+
+  return lines.join('\n');
+}
 
 function doGet(e) {
   var t = HtmlService.createTemplateFromFile('Index');

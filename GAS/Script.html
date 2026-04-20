@@ -1,4 +1,84 @@
 <script>
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===name);});
+  document.getElementById('view-report').style.display=name==='report'?'block':'none';
+  document.getElementById('view-ai').style.display=name==='ai'?'block':'none';
+}
+
+// ===== AI ASSISTANT =====
+function addAIMessage(kind,label,html){
+  var hist=document.getElementById('ai-history');hist.classList.add('has-content');
+  var msg=document.createElement('div');msg.className='ai-msg '+kind;
+  msg.innerHTML='<div class="label">'+esc(label)+'</div>'+html;
+  hist.appendChild(msg);hist.scrollTop=hist.scrollHeight;
+}
+function sendAiPrompt(){
+  var ta=document.getElementById('ai-prompt');var text=(ta.value||'').trim();
+  if(!text)return;
+  var btn=document.getElementById('ai-send-btn');btn.disabled=true;btn.innerHTML='<span class="ai-spinner"></span>Думаю...';
+  addAIMessage('user','Ви',esc(text));
+  ta.value='';
+  google.script.run.withSuccessHandler(function(r){
+    btn.disabled=false;btn.textContent='Згенерувати звіт';
+    if(r.error){addAIMessage('error','Помилка',esc(r.error)+(r.raw?'<pre>'+esc(r.raw)+'</pre>':''));return;}
+    handleAIResult(r.result);
+  }).withFailureHandler(function(e){
+    btn.disabled=false;btn.textContent='Згенерувати звіт';
+    addAIMessage('error','Помилка',esc(e.message||String(e)));
+  }).askAI(text);
+}
+function handleAIResult(result){
+  var chips=(result.filters||[]).map(function(f){
+    var fld=fields.find(function(x){return x.field_id===f.field_id;});
+    var name=fld?fld.label:'field '+f.field_id;
+    var v=Array.isArray(f.value)?f.value.join(','):f.value;
+    return '<span class="filter-chip">'+esc(name)+' '+esc(f.operator)+' '+esc(String(v))+'</span>';
+  }).join('');
+  var body=(result.explanation?'<div>'+esc(result.explanation)+'</div>':'')+'<div style="margin-top:8px">'+chips+'</div>';
+  addAIMessage('ai','AI',body);
+  applyAIFilters(result.filters||[]);
+  setTimeout(function(){switchTab('report');runReport();},250);
+}
+var _recognizer=null,_listening=false;
+function toggleMic(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  var btn=document.getElementById('ai-mic-btn');
+  if(!SR){addAIMessage('error','Голос','Браузер не підтримує розпізнавання. Потрібен Chrome або Edge.');return;}
+  if(_listening){try{_recognizer.stop();}catch(e){}return;}
+  var rec=new SR();rec.lang='uk-UA';rec.interimResults=true;rec.continuous=false;
+  var ta=document.getElementById('ai-prompt');
+  var base=ta.value?ta.value+' ':'';
+  rec.onstart=function(){_listening=true;btn.classList.add('listening');};
+  rec.onresult=function(ev){
+    var txt='';for(var i=ev.resultIndex;i<ev.results.length;i++)txt+=ev.results[i][0].transcript;
+    ta.value=base+txt;
+  };
+  rec.onerror=function(ev){_listening=false;btn.classList.remove('listening');if(ev.error&&ev.error!=='no-speech'&&ev.error!=='aborted')addAIMessage('error','Голос','Помилка мікрофона: '+ev.error);};
+  rec.onend=function(){_listening=false;btn.classList.remove('listening');};
+  _recognizer=rec;rec.start();
+}
+
+function applyAIFilters(filters){
+  // Drop any active preset, wipe the filter rows, then recreate from the AI list
+  _activePresetId=null;
+  document.querySelectorAll('.preset-card').forEach(function(c){c.classList.remove('active');});
+  window._presetColumns=null;window._presetSheetFilters=null;window._presetOrConditions=[];
+  document.getElementById('filter-rows').innerHTML='';
+
+  // Group IN operator values into a single multi-select row per field
+  var byFieldIn={};var others=[];
+  filters.forEach(function(f){
+    if(f.operator==='IN'&&Array.isArray(f.value)){
+      if(!byFieldIn[f.field_id])byFieldIn[f.field_id]={field_id:f.field_id,operator:'IN',value:[]};
+      byFieldIn[f.field_id].value=byFieldIn[f.field_id].value.concat(f.value);
+    }else{
+      others.push(f);
+    }
+  });
+  Object.keys(byFieldIn).forEach(function(fid){addFilterRowWithData(byFieldIn[fid]);});
+  others.forEach(function(f){addFilterRowWithData(f);});
+  if(!filters.length)addFilterRow();
+}
 var fields=[],pipelines=[],users=[],stages={},opLabels={},presets=[],lastData=null,sortCol=null,sortDir='asc';
 var productNames=[];
 window._presetOrConditions=[];window._presetColumns=null;
