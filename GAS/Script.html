@@ -39,6 +39,25 @@ function handleAIResult(result){
   applyAIFilters(result.filters||[]);
   setTimeout(function(){switchTab('report');runReport();},250);
 }
+var _recognizer=null,_listening=false;
+function toggleMic(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  var btn=document.getElementById('ai-mic-btn');
+  if(!SR){addAIMessage('error','Голос','Браузер не підтримує розпізнавання. Потрібен Chrome або Edge.');return;}
+  if(_listening){try{_recognizer.stop();}catch(e){}return;}
+  var rec=new SR();rec.lang='uk-UA';rec.interimResults=true;rec.continuous=false;
+  var ta=document.getElementById('ai-prompt');
+  var base=ta.value?ta.value+' ':'';
+  rec.onstart=function(){_listening=true;btn.classList.add('listening');};
+  rec.onresult=function(ev){
+    var txt='';for(var i=ev.resultIndex;i<ev.results.length;i++)txt+=ev.results[i][0].transcript;
+    ta.value=base+txt;
+  };
+  rec.onerror=function(ev){_listening=false;btn.classList.remove('listening');if(ev.error&&ev.error!=='no-speech'&&ev.error!=='aborted')addAIMessage('error','Голос','Помилка мікрофона: '+ev.error);};
+  rec.onend=function(){_listening=false;btn.classList.remove('listening');};
+  _recognizer=rec;rec.start();
+}
+
 function applyAIFilters(filters){
   // Drop any active preset, wipe the filter rows, then recreate from the AI list
   _activePresetId=null;
