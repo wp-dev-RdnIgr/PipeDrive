@@ -3,6 +3,19 @@ var fields=[],pipelines=[],users=[],stages={},opLabels={},presets=[],lastData=nu
 var productNames=[];
 window._presetOrConditions=[];window._presetColumns=null;
 
+// Унифицированная палитра и базовые опции графиков
+var CHART_COLORS={primary:'#3b82f6',success:'#10b981',danger:'#ef4444',warning:'#f59e0b',purple:'#8b5cf6',teal:'#14b8a6',orange:'#f97316',gray:'#6b7280'};
+var CHART_BASE={
+  backgroundColor:{fill:'transparent'},
+  fontName:'-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif',
+  legend:{position:'top',alignment:'start',textStyle:{fontSize:12,color:'#4b5563'}},
+  tooltip:{textStyle:{fontSize:12}},
+  hAxis:{textStyle:{fontSize:11,color:'#6b7280'},gridlines:{color:'transparent'}},
+  vAxis:{textStyle:{fontSize:11,color:'#9ca3af'},gridlines:{color:'#f3f4f6'},minorGridlines:{color:'transparent'},baselineColor:'#e5e7eb'},
+  chartArea:{left:48,right:24,top:40,bottom:56}
+};
+function chartOpts(extra){var o=JSON.parse(JSON.stringify(CHART_BASE));Object.keys(extra||{}).forEach(function(k){o[k]=extra[k];});return o;}
+
 google.charts.load('current',{packages:['corechart','bar']});
 
 document.addEventListener('DOMContentLoaded',function(){
@@ -71,22 +84,103 @@ function refreshData(){
 function closeSyncModal(){document.getElementById('sync-modal').style.display='none';}
 
 // ===== PRESETS =====
+var _activePresetId=null;
 function initPresets(){
-  var sel=document.getElementById('preset-select');
-  presets.forEach(function(p){var o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o);});
-  sel.onchange=function(){
-    if(!this.value)return;
-    var pr=presets.find(function(p){return p.id===sel.value;});
-    if(!pr)return;
-    document.getElementById('filter-rows').innerHTML='';
-    window._presetOrConditions=pr.orConditions||[];
-    window._presetColumns=pr.columns||null;
-    window._presetSheetFilters=pr.sheetFilters||null;
-    if(pr.andConditions)pr.andConditions.forEach(function(f){addFilterRowWithData(f);});
-    if(pr.orConditions)pr.orConditions.forEach(function(f){addFilterRowWithData(f);});
-    if(pr.filters)pr.filters.forEach(function(f){addFilterRowWithData(f);});
-  };
+  var wrap=document.getElementById('preset-cards');
+  if(!wrap)return;
+  wrap.innerHTML='';
+  var clearBtn=document.createElement('div');
+  clearBtn.className='preset-card clear';clearBtn.innerHTML='<span style="font-size:16px">✖</span><div><div class="preset-name">Без шаблону</div><div class="preset-desc">Ручні фільтри</div></div>';
+  clearBtn.onclick=function(){applyPreset(null);};
+  wrap.appendChild(clearBtn);
+  presets.forEach(function(p){
+    var card=document.createElement('div');card.className='preset-card';card.dataset.id=p.id;
+    var icon=p.icon||'📊';
+    card.innerHTML='<div class="preset-icon">'+icon+'</div><div><div class="preset-name">'+esc(p.name)+'</div><div class="preset-desc">'+esc(p.description||'Шаблон звіту')+'</div></div>';
+    card.onclick=function(){applyPreset(p.id);};
+    wrap.appendChild(card);
+  });
 }
+
+function applyPreset(id){
+  _activePresetId=id;
+  document.querySelectorAll('.preset-card').forEach(function(c){c.classList.toggle('active',c.dataset.id===id);});
+  if(!id){document.getElementById('filter-rows').innerHTML='';window._presetOrConditions=[];window._presetColumns=null;window._presetSheetFilters=null;addFilterRow();return;}
+  var pr=presets.find(function(p){return p.id===id;});if(!pr)return;
+  document.getElementById('filter-rows').innerHTML='';
+  window._presetOrConditions=pr.orConditions||[];
+  window._presetColumns=pr.columns||null;
+  window._presetSheetFilters=pr.sheetFilters||null;
+  if(pr.andConditions)pr.andConditions.forEach(function(f){addFilterRowWithData(f);});
+  if(pr.orConditions)pr.orConditions.forEach(function(f){addFilterRowWithData(f);});
+  if(pr.filters)pr.filters.forEach(function(f){addFilterRowWithData(f);});
+}
+function getActivePresetId(){return _activePresetId;}
+
+// ===== SEARCHABLE SELECT =====
+// Лёгкий dropdown с поиском, группами и экранированием.
+// opts: { placeholder, value, options: [{value,label,group?}], onChange(value,label) }
+// Returns DOM element with methods .getValue()/.setValue(v)/.getLabel().
+function buildSSel(opts){
+  opts=opts||{};
+  var wrap=document.createElement('div');wrap.className='ssel';
+  var inp=document.createElement('input');inp.type='text';inp.readOnly=true;inp.className='ssel-input';
+  inp.placeholder=opts.placeholder||'— Оберіть —';
+  var drop=document.createElement('div');drop.className='ssel-drop';
+  var searchBox=document.createElement('div');searchBox.className='ssel-search';
+  var search=document.createElement('input');search.type='text';search.placeholder='Пошук...';
+  searchBox.appendChild(search);drop.appendChild(searchBox);
+  var optsList=document.createElement('div');optsList.className='ssel-options';drop.appendChild(optsList);
+  wrap.appendChild(inp);wrap.appendChild(drop);
+  var currentValue=opts.value!==undefined?String(opts.value):'';
+  var allOptions=opts.options||[];
+
+  function render(filter){
+    filter=(filter||'').toLowerCase();
+    optsList.innerHTML='';
+    var lastGroup=null,shown=0;
+    allOptions.forEach(function(o){
+      if(filter&&String(o.label).toLowerCase().indexOf(filter)<0)return;
+      if(o.group&&o.group!==lastGroup){
+        var g=document.createElement('div');g.className='ssel-optgroup';g.textContent=o.group;
+        optsList.appendChild(g);lastGroup=o.group;
+      }
+      var row=document.createElement('div');row.className='ssel-option';
+      if(String(o.value)===currentValue)row.classList.add('selected');
+      row.textContent=o.label;
+      row.onclick=function(ev){ev.stopPropagation();setValue(o.value,o.label);close();if(opts.onChange)opts.onChange(o.value,o.label);};
+      optsList.appendChild(row);shown++;
+    });
+    if(!shown){var e=document.createElement('div');e.className='ssel-empty';e.textContent='Нічого не знайдено';optsList.appendChild(e);}
+  }
+  function setValue(v,label){
+    currentValue=v!==undefined&&v!==null?String(v):'';
+    if(label===undefined){
+      var m=allOptions.find(function(o){return String(o.value)===currentValue;});
+      label=m?m.label:'';
+    }
+    inp.value=label||'';
+  }
+  function open(){document.querySelectorAll('.ssel-drop.open').forEach(function(d){d.classList.remove('open');});drop.classList.add('open');search.value='';render('');setTimeout(function(){search.focus();},0);}
+  function close(){drop.classList.remove('open');}
+  inp.onclick=function(ev){ev.stopPropagation();if(drop.classList.contains('open'))close();else open();};
+  search.oninput=function(){render(search.value);};
+  search.onclick=function(ev){ev.stopPropagation();};
+  drop.onclick=function(ev){ev.stopPropagation();};
+
+  // init
+  if(currentValue){
+    var m=allOptions.find(function(o){return String(o.value)===currentValue;});
+    inp.value=m?m.label:'';
+  }
+  render('');
+
+  wrap.getValue=function(){return currentValue;};
+  wrap.setValue=setValue;
+  wrap.getLabel=function(){return inp.value;};
+  return wrap;
+}
+document.addEventListener('click',function(){document.querySelectorAll('.ssel-drop.open').forEach(function(d){d.classList.remove('open');});});
 
 // ===== FILTER ROWS =====
 function addFilterRow(){window._presetOrConditions=[];window._presetColumns=null;window._presetSheetFilters=null;
@@ -105,7 +199,13 @@ function addFilterRowWithData(data){
   addFilterRow();var rows=document.querySelectorAll('.filter-row');var row=rows[rows.length-1];
   var fs=row.querySelector('.field-select');fs.value=data.field_id;fs.onchange();
   var os=row.querySelector('.operator-select');os.value=data.operator;if(os.onchange)os.onchange();
-  var vc=row.querySelector('.value-container');var inp=vc.querySelector('select,input');
+  if(data.value===''||data.value===undefined||data.value===null)return;
+  var vc=row.querySelector('.value-container');
+  var sselEl=vc.querySelector('.ssel');
+  if(sselEl&&typeof sselEl.setValue==='function'){sselEl.setValue(data.value);return;}
+  var hidden=vc.querySelector('.pill-value');
+  if(hidden){var btn=vc.querySelector('.pill[data-val="'+data.value+'"]');if(btn)btn.click();return;}
+  var inp=vc.querySelector('select,input');
   if(inp)inp.value=data.value;
 }
 function onFieldChange(row,fs,os,vc){
@@ -116,23 +216,102 @@ function onFieldChange(row,fs,os,vc){
   os.onchange=function(){renderValue(field,os.value,vc);};
   renderValue(field,field.operators[0],vc);
 }
+// ===== DATE PRESETS =====
+function ymd(d){var m=String(d.getMonth()+1).padStart(2,'0');var day=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+day;}
+function datePresets(){
+  var now=new Date();var y=now.getFullYear();var m=now.getMonth();
+  var startWeek=new Date(now);startWeek.setDate(now.getDate()-((now.getDay()+6)%7));
+  var startQuarter=new Date(y,Math.floor(m/3)*3,1);
+  var lastMonthStart=new Date(y,m-1,1),lastMonthEnd=new Date(y,m,0);
+  var lastQStart=new Date(y,Math.floor(m/3)*3-3,1),lastQEnd=new Date(y,Math.floor(m/3)*3,0);
+  return [
+    {key:'today',label:'Сьогодні',from:ymd(now),to:ymd(now)},
+    {key:'week',label:'Цей тиждень',from:ymd(startWeek),to:ymd(now)},
+    {key:'month',label:'Цей місяць',from:ymd(new Date(y,m,1)),to:ymd(now)},
+    {key:'quarter',label:'Цей квартал',from:ymd(startQuarter),to:ymd(now)},
+    {key:'year',label:'Цей рік',from:y+'-01-01',to:y+'-12-31'},
+    {key:'last7',label:'7 днів',from:ymd(new Date(Date.now()-6*864e5)),to:ymd(now)},
+    {key:'last30',label:'30 днів',from:ymd(new Date(Date.now()-29*864e5)),to:ymd(now)},
+    {key:'last90',label:'90 днів',from:ymd(new Date(Date.now()-89*864e5)),to:ymd(now)},
+    {key:'prevMonth',label:'Попередній місяць',from:ymd(lastMonthStart),to:ymd(lastMonthEnd)},
+    {key:'prevQuarter',label:'Попередній квартал',from:ymd(lastQStart),to:ymd(lastQEnd)},
+    {key:'prevYear',label:'Попередній рік',from:(y-1)+'-01-01',to:(y-1)+'-12-31'}
+  ];
+}
+
 function renderValue(field,op,vc){
   vc.innerHTML='';
   if(op==='IS NULL'||op==='IS NOT NULL')return;
-  if(field.field_id===12511 && productNames.length){var sel=document.createElement('select');sel.innerHTML='<option value="">— Оберіть товар —</option>';productNames.forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o);});vc.appendChild(sel);return;}
-  if(field.type==='date'){var d1=document.createElement('input');d1.type='date';d1.className='date-from';var d2=document.createElement('input');d2.type='date';d2.className='date-to';vc.appendChild(d1);vc.appendChild(d2);return;}
-  if(field.options&&field.options.length){
-    // Fields stored as label (string) in DB, not as ID
-    var labelFields=[12475]; // lost_reason
-    var useLabel=labelFields.indexOf(field.field_id)>=0;
-    var sel=document.createElement('select');
-    field.options.forEach(function(o){var opt=document.createElement('option');opt.value=useLabel?o.label:o.id;opt.textContent=o.label;sel.appendChild(opt);});
-    vc.appendChild(sel);return;
+
+  // ---- DATE: two inputs + preset chips ----
+  if(field.type==='date'){
+    var rangeRow=document.createElement('div');rangeRow.className='date-range-row';
+    var d1=document.createElement('input');d1.type='date';d1.className='date-from';
+    var sep=document.createElement('span');sep.textContent='—';
+    var d2=document.createElement('input');d2.type='date';d2.className='date-to';
+    rangeRow.appendChild(d1);rangeRow.appendChild(sep);rangeRow.appendChild(d2);
+    var chips=document.createElement('div');chips.className='date-presets';
+    datePresets().forEach(function(p){
+      var b=document.createElement('button');b.type='button';b.className='date-preset-btn';b.textContent=p.label;
+      b.onclick=function(){
+        d1.value=p.from;d2.value=p.to;
+        chips.querySelectorAll('.date-preset-btn').forEach(function(x){x.classList.remove('active');});
+        b.classList.add('active');
+      };
+      chips.appendChild(b);
+    });
+    [d1,d2].forEach(function(el){el.oninput=function(){chips.querySelectorAll('.date-preset-btn').forEach(function(x){x.classList.remove('active');});};});
+    vc.appendChild(rangeRow);vc.appendChild(chips);return;
   }
-  if(field.type==='pipeline'){var sel=document.createElement('select');pipelines.forEach(function(p){var o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o);});vc.appendChild(sel);return;}
-  if(field.type==='stage'){var sel=document.createElement('select');pipelines.forEach(function(p){var og=document.createElement('optgroup');og.label=p.name;(stages[p.id]||[]).forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name;og.appendChild(o);});sel.appendChild(og);});vc.appendChild(sel);return;}
-  if(field.type==='user'){var sel=document.createElement('select');var ag=document.createElement('optgroup');ag.label='Активні';var ig=document.createElement('optgroup');ig.label='Неактивні';users.forEach(function(u){var o=document.createElement('option');o.value=u.id;o.textContent=u.name;(u.active?ag:ig).appendChild(o);});sel.appendChild(ag);sel.appendChild(ig);vc.appendChild(sel);return;}
-  if(field.type==='int'||field.type==='monetary'){var inp=document.createElement('input');inp.type='number';vc.appendChild(inp);return;}
+
+  // ---- STATUS: colored pills (single-select) ----
+  if(field.field_id===12464 && field.options&&field.options.length){
+    var pg=document.createElement('div');pg.className='pill-group';var hidden=document.createElement('input');hidden.type='hidden';hidden.className='pill-value';
+    field.options.forEach(function(o){
+      var p=document.createElement('button');p.type='button';p.className='pill '+(o.id==='won'?'opt-won':o.id==='lost'?'opt-lost':'opt-open');p.textContent=o.label;p.dataset.val=o.id;
+      p.onclick=function(){pg.querySelectorAll('.pill').forEach(function(x){x.classList.remove('active','won','lost','open');});p.classList.add('active');if(o.id==='won')p.classList.add('won');else if(o.id==='lost')p.classList.add('lost');else p.classList.add('open');hidden.value=o.id;};
+      pg.appendChild(p);
+    });
+    vc.appendChild(pg);vc.appendChild(hidden);return;
+  }
+
+  // ---- PRODUCT NAME: searchable select ----
+  if(field.field_id===12511 && productNames.length){
+    var opts=productNames.map(function(n){return {value:n,label:n};});
+    vc.appendChild(buildSSel({options:opts,placeholder:'— Оберіть товар —'}));return;
+  }
+
+  // ---- ENUM with field.options: searchable select (label if lost_reason) ----
+  if(field.options&&field.options.length){
+    var labelFields=[12475];
+    var useLabel=labelFields.indexOf(field.field_id)>=0;
+    var ops=field.options.map(function(o){return {value:useLabel?o.label:o.id,label:o.label};});
+    vc.appendChild(buildSSel({options:ops,placeholder:'— Оберіть значення —'}));return;
+  }
+
+  // ---- PIPELINE ----
+  if(field.type==='pipeline'){
+    var ops=pipelines.map(function(p){return {value:p.id,label:p.name};});
+    vc.appendChild(buildSSel({options:ops,placeholder:'— Оберіть воронку —'}));return;
+  }
+
+  // ---- STAGE (cascaded via optgroup) ----
+  if(field.type==='stage'){
+    var ops=[];pipelines.forEach(function(p){(stages[p.id]||[]).forEach(function(s){ops.push({value:s.id,label:s.name,group:p.name});});});
+    vc.appendChild(buildSSel({options:ops,placeholder:'— Оберіть етап —'}));return;
+  }
+
+  // ---- USER (active/inactive groups) ----
+  if(field.type==='user'){
+    var ops=[];users.filter(function(u){return u.active;}).forEach(function(u){ops.push({value:u.id,label:u.name,group:'Активні'});});
+    users.filter(function(u){return !u.active;}).forEach(function(u){ops.push({value:u.id,label:u.name,group:'Неактивні'});});
+    vc.appendChild(buildSSel({options:ops,placeholder:'— Оберіть користувача —'}));return;
+  }
+
+  // ---- NUMBERS ----
+  if(field.type==='int'||field.type==='monetary'){var inp=document.createElement('input');inp.type='number';inp.placeholder=field.type==='monetary'?'0':'';vc.appendChild(inp);return;}
+
+  // ---- DEFAULT: text ----
   var inp=document.createElement('input');inp.type='text';inp.placeholder='Введіть значення...';vc.appendChild(inp);
 }
 function collectConditions(){
@@ -142,9 +321,21 @@ function collectConditions(){
     var os=rows[i].querySelector('.operator-select');if(!fs.value)continue;
     var fid=parseInt(fs.value);var op=os.value;var field=fields.find(function(f){return f.field_id===fid;});
     if(op==='IS NULL'||op==='IS NOT NULL'){conds.push({field_id:fid,operator:op,value:'',extra_value:null});continue;}
-    if(field&&field.type==='date'){var d1=rows[i].querySelector('.date-from');var d2=rows[i].querySelector('.date-to');if(d1&&d1.value)conds.push({field_id:fid,operator:'>=',value:d1.value,extra_value:null});if(d2&&d2.value)conds.push({field_id:fid,operator:'<=',value:d2.value,extra_value:null});continue;}
-    var inp=rows[i].querySelector('.value-container select, .value-container input');
-    if(inp&&inp.value)conds.push({field_id:fid,operator:op,value:inp.value,extra_value:null});
+    if(field&&field.type==='date'){
+      var d1=rows[i].querySelector('.date-from');var d2=rows[i].querySelector('.date-to');
+      if(d1&&d1.value)conds.push({field_id:fid,operator:'>=',value:d1.value,extra_value:null});
+      if(d2&&d2.value)conds.push({field_id:fid,operator:'<=',value:d2.value,extra_value:null});
+      continue;
+    }
+    var val='';
+    var sselEl=rows[i].querySelector('.value-container .ssel');
+    if(sselEl&&typeof sselEl.getValue==='function')val=sselEl.getValue();
+    else{
+      var hidden=rows[i].querySelector('.value-container .pill-value');
+      if(hidden)val=hidden.value;
+      else{var inp=rows[i].querySelector('.value-container select, .value-container input');if(inp)val=inp.value;}
+    }
+    if(val!=='')conds.push({field_id:fid,operator:op,value:val,extra_value:null});
   }
   if(conds.length>16){showError('Максимум 16 умов');return null;}
   if(conds.length===0){showError('Додайте хоча б одну умову');return null;}
@@ -167,7 +358,7 @@ var FIELD_ID_TO_SQL={
 };
 
 function runReport(){
-  var selVal=document.getElementById('preset-select').value;
+  var selVal=getActivePresetId();
   var pr=selVal?presets.find(function(p){return p.id===selVal;}):null;
   if(pr&&pr.sheetFilters){
     showLoading(true);hideError();document.getElementById('report-section').style.display='none';
@@ -196,7 +387,7 @@ function renderReport(r){
   if(r.charts)renderCharts(r.charts);
   renderGroups(r.groups);
   renderTable(r.deals);
-  var id=document.getElementById('preset-select').value;
+  var id=getActivePresetId();
   var preset=id?presets.find(function(p){return p.id===id;}):null;
   if(preset&&preset.enhanced){renderEnhancedCharts(r.deals||[],r.totals||{},preset);}
   else{hideEnhancedCharts();}
@@ -245,12 +436,12 @@ function renderFunnel(deals,preset){
   var dt=new google.visualization.DataTable();
   dt.addColumn('string','Етап');dt.addColumn('number','Відкриті');dt.addColumn('number','Виграні');dt.addColumn('number','Програні');
   stages.forEach(function(s){var c=counts[s.id];dt.addRow([s.name,c.open||0,c.won||0,c.lost||0]);});
-  box.innerHTML='<div class="chart-title">Воронка КП по етапах</div><div id="chart-funnel-canvas" style="height:320px"></div>';
+  box.innerHTML='<div class="chart-title">🎯 Воронка КП по етапах<span class="hint">де застрягли угоди</span></div><div id="chart-funnel-canvas" style="height:340px"></div>';
   box.style.display='block';
-  new google.visualization.ColumnChart(document.getElementById('chart-funnel-canvas')).draw(dt,{
-    isStacked:true,legend:{position:'top'},colors:['#3498db','#27ae60','#e74c3c'],
-    chartArea:{width:'85%',height:'70%'},hAxis:{slantedText:true,slantedTextAngle:25}
-  });
+  new google.visualization.ColumnChart(document.getElementById('chart-funnel-canvas')).draw(dt,chartOpts({
+    isStacked:true,colors:[CHART_COLORS.primary,CHART_COLORS.success,CHART_COLORS.danger],bar:{groupWidth:'62%'},
+    hAxis:{slantedText:true,slantedTextAngle:20,textStyle:{fontSize:11,color:'#6b7280'}}
+  }));
 }
 
 var _lossDealsCache={};
@@ -267,10 +458,10 @@ function renderLossReasons(deals){
   });
   var dt=new google.visualization.DataTable();dt.addColumn('string','Причина');dt.addColumn('number','Угод');
   Object.keys(byReason).forEach(function(k){dt.addRow([k,byReason[k]]);});
-  box.innerHTML='<div class="chart-title">Причини програшу (клік — коментарі)</div><div id="chart-loss-canvas" style="height:320px;cursor:pointer"></div>';
+  box.innerHTML='<div class="chart-title">❌ Причини програшу<span class="hint">клік по сектору — коментарі</span></div><div id="chart-loss-canvas" style="height:340px;cursor:pointer"></div>';
   box.style.display='block';
   var chart=new google.visualization.PieChart(document.getElementById('chart-loss-canvas'));
-  chart.draw(dt,{pieHole:0.4,chartArea:{width:'90%',height:'80%'},legend:{position:'right',textStyle:{fontSize:11}}});
+  chart.draw(dt,chartOpts({pieHole:0.5,legend:{position:'right',textStyle:{fontSize:11,color:'#4b5563'}},chartArea:{left:16,right:140,top:16,bottom:16},colors:['#ef4444','#f59e0b','#f97316','#dc2626','#fb7185','#fda4af','#991b1b','#b45309','#c2410c']}));
   google.visualization.events.addListener(chart,'select',function(){
     var sel=chart.getSelection();if(!sel.length)return;
     var reason=dt.getValue(sel[0].row,0);showLossComments(reason);
@@ -305,12 +496,13 @@ function renderMonthlyTrend(deals){
   var dt=new google.visualization.DataTable();
   dt.addColumn('string','Місяць');dt.addColumn('number','Створено');dt.addColumn('number','Виграно');dt.addColumn('number','Програно');
   keys.forEach(function(k){var m=months[k];dt.addRow([k,m.created,m.won,m.lost]);});
-  box.innerHTML='<div class="chart-title">Динаміка КП по місяцях</div><div id="chart-monthly-canvas" style="height:320px"></div>';
+  box.innerHTML='<div class="chart-title">📈 Динаміка КП по місяцях<span class="hint">створено vs виграно vs програно</span></div><div id="chart-monthly-canvas" style="height:340px"></div>';
   box.style.display='block';
-  new google.visualization.LineChart(document.getElementById('chart-monthly-canvas')).draw(dt,{
-    colors:['#333','#27ae60','#e74c3c'],legend:{position:'top'},
-    chartArea:{width:'88%',height:'72%'},pointSize:5,curveType:'function'
-  });
+  new google.visualization.LineChart(document.getElementById('chart-monthly-canvas')).draw(dt,chartOpts({
+    colors:[CHART_COLORS.gray,CHART_COLORS.success,CHART_COLORS.danger],
+    pointSize:6,pointShape:'circle',curveType:'function',lineWidth:2.5,
+    chartArea:{left:52,right:24,top:40,bottom:40}
+  }));
 }
 
 function renderConvByManager(deals){
@@ -326,13 +518,15 @@ function renderConvByManager(deals){
   var dt=new google.visualization.DataTable();
   dt.addColumn('string','Менеджер');dt.addColumn('number','Виграні');dt.addColumn('number','Програні');dt.addColumn('number','Відкриті');dt.addColumn({type:'string',role:'annotation'});
   rows.forEach(function(m){dt.addRow([m.name,m.won,m.lost,m.open,m.winRate+'%']);});
-  box.innerHTML='<div class="chart-title">Конверсія по менеджерах (win-rate %)</div><div id="chart-mgr-canvas" style="height:360px"></div>';
+  box.innerHTML='<div class="chart-title">👥 Конверсія по менеджерах<span class="hint">win-rate % над стовпчиком</span></div><div id="chart-mgr-canvas" style="height:380px"></div>';
   box.style.display='block';
-  new google.visualization.ColumnChart(document.getElementById('chart-mgr-canvas')).draw(dt,{
-    isStacked:true,colors:['#27ae60','#e74c3c','#3498db'],legend:{position:'top'},
-    chartArea:{width:'85%',height:'65%'},hAxis:{slantedText:true,slantedTextAngle:30},
-    annotations:{alwaysOutside:true,textStyle:{fontSize:11,color:'#333'}}
-  });
+  new google.visualization.ColumnChart(document.getElementById('chart-mgr-canvas')).draw(dt,chartOpts({
+    isStacked:true,colors:[CHART_COLORS.success,CHART_COLORS.danger,CHART_COLORS.primary],
+    bar:{groupWidth:'62%'},
+    hAxis:{slantedText:true,slantedTextAngle:30,textStyle:{fontSize:11,color:'#6b7280'}},
+    annotations:{alwaysOutside:true,textStyle:{fontSize:11,color:'#374151',bold:true}},
+    chartArea:{left:48,right:24,top:40,bottom:100}
+  }));
 }
 
 function renderHeatmapStageManager(deals,preset){
@@ -347,7 +541,7 @@ function renderHeatmapStageManager(deals,preset){
   });
   if(!mgrList.length){box.style.display='none';return;}
   var max=0;mgrList.forEach(function(m){stages.forEach(function(s){var v=mgrs[m][s.id]||0;if(v>max)max=v;});});
-  var html='<div class="chart-title">Карта: Менеджер × Етап (де застрягли КП)</div><div style="overflow-x:auto"><table class="heatmap-table"><thead><tr><th>Менеджер</th>';
+  var html='<div class="chart-title">🔥 Карта: Менеджер × Етап<span class="hint">де кладовища угод</span></div><div style="overflow-x:auto"><table class="heatmap-table"><thead><tr><th>Менеджер</th>';
   stages.forEach(function(s){html+='<th>'+esc(s.name)+'</th>';});html+='<th>Всього</th></tr></thead><tbody>';
   mgrList.forEach(function(m){
     html+='<tr><td class="mgr">'+esc(m)+'</td>';var total=0;
@@ -411,11 +605,50 @@ var TABLE_COLS=[
 
 function getActiveCols(){return window._presetColumns||TABLE_COLS;}
 
+var PAGE_SIZE=50,currentPage=1;
 function renderTable(deals){
   var cols=getActiveCols();
   document.getElementById('deals-thead').innerHTML='<tr>'+cols.map(function(c){return '<th onclick="sortTable(\''+c.key+'\')">'+c.label+'<span class="sort-icon" id="si-'+c.key+'"></span></th>';}).join('')+'</tr>';
-  fillTableBody(deals);
+  var badge=document.getElementById('table-count');if(badge)badge.textContent=(deals||[]).length.toLocaleString('uk-UA')+' угод';
+  currentPage=1;
+  renderPage(deals);
 }
+function renderPage(deals){
+  var total=(deals||[]).length;
+  var pages=Math.max(1,Math.ceil(total/PAGE_SIZE));
+  if(currentPage>pages)currentPage=pages;
+  var start=(currentPage-1)*PAGE_SIZE;var end=Math.min(start+PAGE_SIZE,total);
+  fillTableBody((deals||[]).slice(start,end));
+  renderPagination(total,pages,start,end);
+}
+function renderPagination(total,pages,start,end){
+  var el=document.getElementById('pagination');if(!el)return;
+  if(total<=PAGE_SIZE){el.innerHTML='';el.style.display='none';return;}
+  el.style.display='flex';
+  var info='<span class="info">'+(total?(start+1):0)+'–'+end+' з '+total.toLocaleString('uk-UA')+'</span>';
+  var ctrl='<div class="controls">';
+  ctrl+='<button class="page-btn" onclick="gotoPage(1)" '+(currentPage===1?'disabled':'')+'>«</button>';
+  ctrl+='<button class="page-btn" onclick="gotoPage('+(currentPage-1)+')" '+(currentPage===1?'disabled':'')+'>‹</button>';
+  var pageNums=buildPageNumbers(currentPage,pages);
+  pageNums.forEach(function(n){
+    if(n==='...')ctrl+='<span class="page-ellipsis">…</span>';
+    else ctrl+='<button class="page-btn '+(n===currentPage?'current':'')+'" onclick="gotoPage('+n+')">'+n+'</button>';
+  });
+  ctrl+='<button class="page-btn" onclick="gotoPage('+(currentPage+1)+')" '+(currentPage===pages?'disabled':'')+'>›</button>';
+  ctrl+='<button class="page-btn" onclick="gotoPage('+pages+')" '+(currentPage===pages?'disabled':'')+'>»</button>';
+  ctrl+='</div>';
+  el.innerHTML=info+ctrl;
+}
+function buildPageNumbers(cur,total){
+  if(total<=7){var a=[];for(var i=1;i<=total;i++)a.push(i);return a;}
+  var r=[1];
+  if(cur>3)r.push('...');
+  for(var i=Math.max(2,cur-1);i<=Math.min(total-1,cur+1);i++)r.push(i);
+  if(cur<total-2)r.push('...');
+  r.push(total);return r;
+}
+function gotoPage(n){if(!lastData||!lastData.deals)return;var pages=Math.max(1,Math.ceil(lastData.deals.length/PAGE_SIZE));if(n<1||n>pages)return;currentPage=n;renderPage(lastData.deals);window.scrollTo({top:document.querySelector('.table-wrap').offsetTop-20,behavior:'smooth'});}
+
 function fillTableBody(deals){
   var cols=getActiveCols();
   document.getElementById('deals-tbody').innerHTML=deals.map(function(d){
@@ -436,7 +669,7 @@ function sortTable(col){
   document.querySelectorAll('.sort-icon').forEach(function(s){s.textContent='';});
   var icon=document.getElementById('si-'+col);if(icon)icon.textContent=sortDir==='asc'?' ▲':' ▼';
   lastData.deals.sort(function(a,b){var va=a[col]||'',vb=b[col]||'';if(typeof va==='number')return sortDir==='asc'?va-vb:vb-va;return sortDir==='asc'?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));});
-  fillTableBody(lastData.deals);
+  currentPage=1;renderPage(lastData.deals);
 }
 
 function formatMoney(v){if(v===null||v===undefined||v==='')return'—';return new Intl.NumberFormat('uk-UA',{maximumFractionDigits:0}).format(Number(v));}

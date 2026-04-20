@@ -9,25 +9,26 @@
   <div id="app">
     <header>
       <h1>Звіти по угодах Pipedrive</h1>
-      <div id="presets">
-        <label>Готові звіти:</label>
-        <select id="preset-select"><option value="">— Обрати —</option></select>
-      </div>
     </header>
 
-    <section id="refresh-panel">
-      <h2>Оновлення даних</h2>
+    <section id="presets-panel" class="panel">
+      <h2><span class="icon">⭐</span> Готові звіти</h2>
+      <div id="preset-cards" class="preset-cards"></div>
+    </section>
+
+    <section id="refresh-panel" class="panel">
+      <h2><span class="icon">🔄</span> Оновлення даних</h2>
       <div class="refresh-row">
         <label>Період:</label>
-        <input type="date" id="date-from" />
-        <span>—</span>
-        <input type="date" id="date-to" />
+        <input type="date" id="date-from" class="date-input" />
+        <span style="color:var(--gray-400)">—</span>
+        <input type="date" id="date-to" class="date-input" />
         <button id="btn-refresh" class="primary" onclick="refreshData()">Оновити дані</button>
       </div>
     </section>
 
-    <section id="filter-panel">
-      <h2>Фільтри</h2>
+    <section id="filter-panel" class="panel">
+      <h2><span class="icon">🔍</span> Фільтри</h2>
       <div id="filter-rows"></div>
       <div class="filter-actions">
         <button id="btn-add" onclick="addFilterRow()">+ Додати умову</button>
@@ -54,10 +55,10 @@
           <div class="chart-box" id="chart-loss-reasons" style="display:none"></div>
         </div>
         <div class="chart-row">
-          <div class="chart-box" id="chart-monthly-trend" style="display:none"></div>
+          <div class="chart-box full" id="chart-monthly-trend" style="display:none"></div>
         </div>
         <div class="chart-row">
-          <div class="chart-box" id="chart-conv-manager" style="display:none"></div>
+          <div class="chart-box full" id="chart-conv-manager" style="display:none"></div>
         </div>
         <div class="chart-row">
           <div class="chart-box full" id="chart-heatmap" style="display:none"></div>
@@ -66,7 +67,14 @@
         <div class="chart-row"><div class="chart-box" id="chart-pipelines"></div></div>
       </div>
       <div id="group-tables"></div>
-      <div class="table-wrap"><table id="deals-table"><thead id="deals-thead"></thead><tbody id="deals-tbody"></tbody></table></div>
+      <div class="table-wrap">
+        <div class="table-head">
+          <span class="title">Угоди</span>
+          <span class="count-badge" id="table-count">0</span>
+        </div>
+        <div class="table-scroll"><table id="deals-table"><thead id="deals-thead"></thead><tbody id="deals-tbody"></tbody></table></div>
+        <div class="pagination" id="pagination"></div>
+      </div>
     </section>
   </div>
 
@@ -109,13 +117,13 @@
   <div id="debug-modal" class="modal" style="display:none">
     <div class="modal-content" style="max-width:900px;text-align:left">
       <h2>🔍 Debug: Report Query</h2>
-      <h3>Вхідні фільтри:</h3>
-      <pre id="debug-filters" style="background:#f8f9fa;padding:12px;border-radius:6px;overflow-x:auto;font-size:12px;max-height:150px"></pre>
-      <h3>SQL-запит:</h3>
-      <pre id="debug-sql" style="background:#f8f9fa;padding:12px;border-radius:6px;overflow-x:auto;font-size:12px;max-height:250px;white-space:pre-wrap"></pre>
-      <h3>Результат:</h3>
-      <pre id="debug-count" style="background:#f8f9fa;padding:12px;border-radius:6px;font-size:12px"></pre>
-      <button class="primary" onclick="document.getElementById('debug-modal').style.display='none'">Закрити</button>
+      <h3 style="font-size:13px;margin:12px 0 4px;color:var(--gray-600)">Вхідні фільтри:</h3>
+      <pre id="debug-filters" style="background:var(--gray-50);padding:12px;border-radius:6px;overflow-x:auto;font-size:12px;max-height:150px;border:1px solid var(--gray-100)"></pre>
+      <h3 style="font-size:13px;margin:12px 0 4px;color:var(--gray-600)">SQL-запит:</h3>
+      <pre id="debug-sql" style="background:var(--gray-50);padding:12px;border-radius:6px;overflow-x:auto;font-size:12px;max-height:250px;white-space:pre-wrap;border:1px solid var(--gray-100)"></pre>
+      <h3 style="font-size:13px;margin:12px 0 4px;color:var(--gray-600)">Результат:</h3>
+      <pre id="debug-count" style="background:var(--gray-50);padding:12px;border-radius:6px;font-size:12px;border:1px solid var(--gray-100)"></pre>
+      <button class="primary" onclick="document.getElementById('debug-modal').style.display='none'" style="margin-top:14px">Закрити</button>
     </div>
   </div>
 
