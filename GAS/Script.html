@@ -112,7 +112,16 @@ function applyPreset(id){
   window._presetColumns=pr.columns||null;
   window._presetSheetFilters=pr.sheetFilters||null;
   if(pr.andConditions)pr.andConditions.forEach(function(f){addFilterRowWithData(f);});
-  if(pr.orConditions)pr.orConditions.forEach(function(f){addFilterRowWithData(f);});
+  // Group repeating orConditions on the same field into one multi-select row (IN)
+  if(pr.orConditions&&pr.orConditions.length){
+    var byField={};
+    pr.orConditions.forEach(function(f){if(!byField[f.field_id])byField[f.field_id]=[];byField[f.field_id].push(f.value);});
+    Object.keys(byField).forEach(function(fid){
+      var vals=byField[fid];
+      if(vals.length>1)addFilterRowWithData({field_id:parseInt(fid),operator:'IN',value:vals});
+      else addFilterRowWithData({field_id:parseInt(fid),operator:'=',value:vals[0]});
+    });
+  }
   if(pr.filters)pr.filters.forEach(function(f){addFilterRowWithData(f);});
 }
 function getActivePresetId(){return _activePresetId;}
@@ -122,8 +131,8 @@ function getActivePresetId(){return _activePresetId;}
 // opts: { placeholder, value, options: [{value,label,group?}], onChange(value,label) }
 // Returns DOM element with methods .getValue()/.setValue(v)/.getLabel().
 function buildSSel(opts){
-  opts=opts||{};
-  var wrap=document.createElement('div');wrap.className='ssel';
+  opts=opts||{};var multi=!!opts.multi;
+  var wrap=document.createElement('div');wrap.className='ssel'+(multi?' ssel-multi':'');
   var inp=document.createElement('input');inp.type='text';inp.readOnly=true;inp.className='ssel-input';
   inp.placeholder=opts.placeholder||'— Оберіть —';
   var drop=document.createElement('div');drop.className='ssel-drop';
@@ -133,6 +142,8 @@ function buildSSel(opts){
   var optsList=document.createElement('div');optsList.className='ssel-options';drop.appendChild(optsList);
   wrap.appendChild(inp);wrap.appendChild(drop);
   var currentValue=opts.value!==undefined?String(opts.value):'';
+  var selectedSet=multi?{}:null;
+  if(multi&&opts.value){String(opts.value).split(',').forEach(function(v){if(v!=='')selectedSet[v]=true;});}
   var allOptions=opts.options||[];
 
   function render(filter){
@@ -146,21 +157,39 @@ function buildSSel(opts){
         optsList.appendChild(g);lastGroup=o.group;
       }
       var row=document.createElement('div');row.className='ssel-option';
-      if(String(o.value)===currentValue)row.classList.add('selected');
-      row.textContent=o.label;
-      row.onclick=function(ev){ev.stopPropagation();setValue(o.value,o.label);close();if(opts.onChange)opts.onChange(o.value,o.label);};
+      if(multi){
+        var chk=document.createElement('span');chk.className='ssel-check';chk.textContent=selectedSet[String(o.value)]?'☑':'☐';
+        row.appendChild(chk);var txt=document.createElement('span');txt.textContent=o.label;row.appendChild(txt);
+        if(selectedSet[String(o.value)])row.classList.add('selected');
+        row.onclick=function(ev){ev.stopPropagation();toggleValue(o.value);chk.textContent=selectedSet[String(o.value)]?'☑':'☐';row.classList.toggle('selected');updateInput();if(opts.onChange)opts.onChange(getValue());};
+      }else{
+        if(String(o.value)===currentValue)row.classList.add('selected');
+        row.textContent=o.label;
+        row.onclick=function(ev){ev.stopPropagation();setValue(o.value,o.label);close();if(opts.onChange)opts.onChange(o.value,o.label);};
+      }
       optsList.appendChild(row);shown++;
     });
     if(!shown){var e=document.createElement('div');e.className='ssel-empty';e.textContent='Нічого не знайдено';optsList.appendChild(e);}
   }
+  function toggleValue(v){v=String(v);if(selectedSet[v])delete selectedSet[v];else selectedSet[v]=true;}
+  function updateInput(){
+    var keys=Object.keys(selectedSet);
+    if(!keys.length){inp.value='';return;}
+    var labels=keys.map(function(k){var m=allOptions.find(function(o){return String(o.value)===k;});return m?m.label:k;});
+    inp.value=labels.length<=2?labels.join(', '):labels.slice(0,2).join(', ')+' +'+(labels.length-2);
+  }
   function setValue(v,label){
-    currentValue=v!==undefined&&v!==null?String(v):'';
-    if(label===undefined){
-      var m=allOptions.find(function(o){return String(o.value)===currentValue;});
-      label=m?m.label:'';
+    if(multi){
+      selectedSet={};
+      if(Array.isArray(v))v.forEach(function(x){if(x!=='')selectedSet[String(x)]=true;});
+      else if(v!==undefined&&v!==null&&v!==''){String(v).split(',').forEach(function(x){if(x!=='')selectedSet[String(x)]=true;});}
+      updateInput();return;
     }
+    currentValue=v!==undefined&&v!==null?String(v):'';
+    if(label===undefined){var m=allOptions.find(function(o){return String(o.value)===currentValue;});label=m?m.label:'';}
     inp.value=label||'';
   }
+  function getValue(){if(multi)return Object.keys(selectedSet);return currentValue;}
   function open(){document.querySelectorAll('.ssel-drop.open').forEach(function(d){d.classList.remove('open');});drop.classList.add('open');search.value='';render('');setTimeout(function(){search.focus();},0);}
   function close(){drop.classList.remove('open');}
   inp.onclick=function(ev){ev.stopPropagation();if(drop.classList.contains('open'))close();else open();};
@@ -168,15 +197,13 @@ function buildSSel(opts){
   search.onclick=function(ev){ev.stopPropagation();};
   drop.onclick=function(ev){ev.stopPropagation();};
 
-  // init
-  if(currentValue){
-    var m=allOptions.find(function(o){return String(o.value)===currentValue;});
-    inp.value=m?m.label:'';
-  }
+  if(multi)updateInput();
+  else if(currentValue){var m=allOptions.find(function(o){return String(o.value)===currentValue;});inp.value=m?m.label:'';}
   render('');
 
-  wrap.getValue=function(){return currentValue;};
+  wrap.getValue=getValue;
   wrap.setValue=setValue;
+  wrap.isMulti=function(){return multi;};
   wrap.getLabel=function(){return inp.value;};
   return wrap;
 }
@@ -295,10 +322,10 @@ function renderValue(field,op,vc){
     vc.appendChild(buildSSel({options:ops,placeholder:'— Оберіть воронку —'}));return;
   }
 
-  // ---- STAGE (cascaded via optgroup) ----
+  // ---- STAGE (multi-select, cascaded via optgroup) ----
   if(field.type==='stage'){
     var ops=[];pipelines.forEach(function(p){(stages[p.id]||[]).forEach(function(s){ops.push({value:s.id,label:s.name,group:p.name});});});
-    vc.appendChild(buildSSel({options:ops,placeholder:'— Оберіть етап —'}));return;
+    vc.appendChild(buildSSel({options:ops,placeholder:'— Оберіть етапи —',multi:true}));return;
   }
 
   // ---- USER (active/inactive groups) ----
@@ -329,8 +356,13 @@ function collectConditions(){
     }
     var val='';
     var sselEl=rows[i].querySelector('.value-container .ssel');
-    if(sselEl&&typeof sselEl.getValue==='function')val=sselEl.getValue();
-    else{
+    if(sselEl&&typeof sselEl.getValue==='function'){
+      val=sselEl.getValue();
+      if(Array.isArray(val)){
+        if(!val.length)continue;
+        conds.push({field_id:fid,operator:'IN',value:val,extra_value:null});continue;
+      }
+    }else{
       var hidden=rows[i].querySelector('.value-container .pill-value');
       if(hidden)val=hidden.value;
       else{var inp=rows[i].querySelector('.value-container select, .value-container input');if(inp)val=inp.value;}
@@ -372,9 +404,10 @@ function runReport(){
   // Convert field_id conditions to SQL filters
   var dbFilters=c.map(function(cond){
     var col=FIELD_ID_TO_SQL[cond.field_id];if(!col)return null;
-    var opMap={'=':'=','!=':'!=','>=':'>=','<=':'<=','>':'>','<':'<','LIKE':'contains','IS NULL':'is null','IS NOT NULL':'is not null'};
+    var opMap={'=':'=','!=':'!=','>=':'>=','<=':'<=','>':'>','<':'<','LIKE':'contains','IS NULL':'is null','IS NOT NULL':'is not null','IN':'in'};
     // Special case: product_name (12511) -> JOIN with deal_products
     if(cond.field_id===12511)return {field:'product_name',op:'=',value:cond.value};
+    if(cond.operator==='IN')return {field:col,op:'in',value:cond.value};
     return {field:col,op:opMap[cond.operator]||'=',value:cond.value};
   }).filter(function(x){return x;});
   var gb=document.getElementById('group-by').value;
