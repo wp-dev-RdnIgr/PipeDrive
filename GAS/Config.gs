@@ -93,6 +93,8 @@ var PRESET_REPORTS = [
   {
     id:'commercial_proposals',
     name:'Комерційні пропозиції',
+    icon:'💼',
+    description:'Воронка КП, причини програшу, конверсія менеджерів',
     enhanced:true,
     funnelStages:[
       {id:8,name:'Підготовка пропозицій'},
@@ -151,7 +153,7 @@ var PRESET_REPORTS = [
       {key:'lost_reason',label:'Причина програшу'},
       {key:'c_loss_comment',label:'Коментар по програшу'}
     ],
-    description:'Звіт по комерційним пропозиціям: усі поля для аналізу'
+    description:'Воронка КП, причини програшу, конверсія менеджерів'
   }
 ];
 function getPresetReports(){return PRESET_REPORTS;}
