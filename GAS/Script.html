@@ -71,22 +71,38 @@ function refreshData(){
 function closeSyncModal(){document.getElementById('sync-modal').style.display='none';}
 
 // ===== PRESETS =====
+var _activePresetId=null;
 function initPresets(){
-  var sel=document.getElementById('preset-select');
-  presets.forEach(function(p){var o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o);});
-  sel.onchange=function(){
-    if(!this.value)return;
-    var pr=presets.find(function(p){return p.id===sel.value;});
-    if(!pr)return;
-    document.getElementById('filter-rows').innerHTML='';
-    window._presetOrConditions=pr.orConditions||[];
-    window._presetColumns=pr.columns||null;
-    window._presetSheetFilters=pr.sheetFilters||null;
-    if(pr.andConditions)pr.andConditions.forEach(function(f){addFilterRowWithData(f);});
-    if(pr.orConditions)pr.orConditions.forEach(function(f){addFilterRowWithData(f);});
-    if(pr.filters)pr.filters.forEach(function(f){addFilterRowWithData(f);});
-  };
+  var wrap=document.getElementById('preset-cards');
+  if(!wrap)return;
+  wrap.innerHTML='';
+  var clearBtn=document.createElement('div');
+  clearBtn.className='preset-card clear';clearBtn.innerHTML='<span style="font-size:16px">✖</span><div><div class="preset-name">Без шаблону</div><div class="preset-desc">Ручні фільтри</div></div>';
+  clearBtn.onclick=function(){applyPreset(null);};
+  wrap.appendChild(clearBtn);
+  presets.forEach(function(p){
+    var card=document.createElement('div');card.className='preset-card';card.dataset.id=p.id;
+    var icon=p.icon||'📊';
+    card.innerHTML='<div class="preset-icon">'+icon+'</div><div><div class="preset-name">'+esc(p.name)+'</div><div class="preset-desc">'+esc(p.description||'Шаблон звіту')+'</div></div>';
+    card.onclick=function(){applyPreset(p.id);};
+    wrap.appendChild(card);
+  });
 }
+
+function applyPreset(id){
+  _activePresetId=id;
+  document.querySelectorAll('.preset-card').forEach(function(c){c.classList.toggle('active',c.dataset.id===id);});
+  if(!id){document.getElementById('filter-rows').innerHTML='';window._presetOrConditions=[];window._presetColumns=null;window._presetSheetFilters=null;addFilterRow();return;}
+  var pr=presets.find(function(p){return p.id===id;});if(!pr)return;
+  document.getElementById('filter-rows').innerHTML='';
+  window._presetOrConditions=pr.orConditions||[];
+  window._presetColumns=pr.columns||null;
+  window._presetSheetFilters=pr.sheetFilters||null;
+  if(pr.andConditions)pr.andConditions.forEach(function(f){addFilterRowWithData(f);});
+  if(pr.orConditions)pr.orConditions.forEach(function(f){addFilterRowWithData(f);});
+  if(pr.filters)pr.filters.forEach(function(f){addFilterRowWithData(f);});
+}
+function getActivePresetId(){return _activePresetId;}
 
 // ===== FILTER ROWS =====
 function addFilterRow(){window._presetOrConditions=[];window._presetColumns=null;window._presetSheetFilters=null;
@@ -167,7 +183,7 @@ var FIELD_ID_TO_SQL={
 };
 
 function runReport(){
-  var selVal=document.getElementById('preset-select').value;
+  var selVal=getActivePresetId();
   var pr=selVal?presets.find(function(p){return p.id===selVal;}):null;
   if(pr&&pr.sheetFilters){
     showLoading(true);hideError();document.getElementById('report-section').style.display='none';
@@ -196,7 +212,7 @@ function renderReport(r){
   if(r.charts)renderCharts(r.charts);
   renderGroups(r.groups);
   renderTable(r.deals);
-  var id=document.getElementById('preset-select').value;
+  var id=getActivePresetId();
   var preset=id?presets.find(function(p){return p.id===id;}):null;
   if(preset&&preset.enhanced){renderEnhancedCharts(r.deals||[],r.totals||{},preset);}
   else{hideEnhancedCharts();}
