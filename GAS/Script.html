@@ -196,6 +196,176 @@ function renderReport(r){
   if(r.charts)renderCharts(r.charts);
   renderGroups(r.groups);
   renderTable(r.deals);
+  var id=document.getElementById('preset-select').value;
+  var preset=id?presets.find(function(p){return p.id===id;}):null;
+  if(preset&&preset.enhanced){renderEnhancedCharts(r.deals||[],r.totals||{},preset);}
+  else{hideEnhancedCharts();}
+}
+
+function hideEnhancedCharts(){
+  document.getElementById('kpi-extra-cards').style.display='none';
+  ['chart-funnel','chart-loss-reasons','chart-monthly-trend','chart-conv-manager','chart-heatmap'].forEach(function(id){
+    document.getElementById(id).style.display='none';
+  });
+}
+
+function renderEnhancedCharts(deals,totals,preset){
+  renderKpiExtra(deals,totals);
+  google.charts.setOnLoadCallback(function(){
+    renderFunnel(deals,preset);
+    renderLossReasons(deals);
+    renderMonthlyTrend(deals);
+    renderConvByManager(deals);
+    renderHeatmapStageManager(deals,preset);
+  });
+}
+
+function renderKpiExtra(deals,t){
+  var pipelineSum=0,wonCount=0,wonSum=0,weightedForecast=0;
+  deals.forEach(function(d){
+    var v=parseFloat(d.value)||0;
+    if(d.status==='open'){pipelineSum+=v;weightedForecast+=v*((parseFloat(d.probability)||0)/100);}
+    if(d.status==='won'){wonCount++;wonSum+=v;}
+  });
+  var avgCheck=wonCount>0?Math.round(wonSum/wonCount):0;
+  var el=document.getElementById('kpi-extra-cards');
+  el.innerHTML=
+    '<div class="card kpi-pipeline"><div class="num">'+formatMoney(pipelineSum)+'</div><div class="lbl">Сума в pipeline</div></div>'+
+    '<div class="card kpi-avg"><div class="num">'+formatMoney(avgCheck)+'</div><div class="lbl">Середній чек (виграні)</div></div>'+
+    '<div class="card kpi-forecast"><div class="num">'+formatMoney(Math.round(weightedForecast))+'</div><div class="lbl">Прогноз (probability × pipeline)</div></div>';
+  el.style.display='flex';
+}
+
+function renderFunnel(deals,preset){
+  var box=document.getElementById('chart-funnel');
+  var stages=(preset&&preset.funnelStages)||[];
+  if(!stages.length){box.style.display='none';return;}
+  var counts={};stages.forEach(function(s){counts[s.id]={open:0,won:0,lost:0};});
+  deals.forEach(function(d){if(counts[d.stage_id])counts[d.stage_id][d.status]=(counts[d.stage_id][d.status]||0)+1;});
+  var dt=new google.visualization.DataTable();
+  dt.addColumn('string','Етап');dt.addColumn('number','Відкриті');dt.addColumn('number','Виграні');dt.addColumn('number','Програні');
+  stages.forEach(function(s){var c=counts[s.id];dt.addRow([s.name,c.open||0,c.won||0,c.lost||0]);});
+  box.innerHTML='<div class="chart-title">Воронка КП по етапах</div><div id="chart-funnel-canvas" style="height:320px"></div>';
+  box.style.display='block';
+  new google.visualization.ColumnChart(document.getElementById('chart-funnel-canvas')).draw(dt,{
+    isStacked:true,legend:{position:'top'},colors:['#3498db','#27ae60','#e74c3c'],
+    chartArea:{width:'85%',height:'70%'},hAxis:{slantedText:true,slantedTextAngle:25}
+  });
+}
+
+var _lossDealsCache={};
+function renderLossReasons(deals){
+  var box=document.getElementById('chart-loss-reasons');
+  var lost=deals.filter(function(d){return d.status==='lost';});
+  if(!lost.length){box.style.display='none';return;}
+  var byReason={};_lossDealsCache={};
+  lost.forEach(function(d){
+    var r=d.lost_reason||'(не вказано)';
+    byReason[r]=(byReason[r]||0)+1;
+    if(!_lossDealsCache[r])_lossDealsCache[r]=[];
+    _lossDealsCache[r].push(d);
+  });
+  var dt=new google.visualization.DataTable();dt.addColumn('string','Причина');dt.addColumn('number','Угод');
+  Object.keys(byReason).forEach(function(k){dt.addRow([k,byReason[k]]);});
+  box.innerHTML='<div class="chart-title">Причини програшу (клік — коментарі)</div><div id="chart-loss-canvas" style="height:320px;cursor:pointer"></div>';
+  box.style.display='block';
+  var chart=new google.visualization.PieChart(document.getElementById('chart-loss-canvas'));
+  chart.draw(dt,{pieHole:0.4,chartArea:{width:'90%',height:'80%'},legend:{position:'right',textStyle:{fontSize:11}}});
+  google.visualization.events.addListener(chart,'select',function(){
+    var sel=chart.getSelection();if(!sel.length)return;
+    var reason=dt.getValue(sel[0].row,0);showLossComments(reason);
+  });
+}
+
+function showLossComments(reason){
+  var dl=_lossDealsCache[reason]||[];
+  document.getElementById('loss-comments-title').textContent='Програні КП: '+reason+' ('+dl.length+')';
+  document.getElementById('loss-comments-list').innerHTML=dl.map(function(d){
+    var title=esc(d.title||'(без назви)');
+    var comment=d.c_loss_comment?esc(d.c_loss_comment):'<em style="color:#aaa">коментар не заповнений</em>';
+    var owner=esc(d.owner_name||'');var val=formatMoney(d.value);
+    return '<div class="loss-comment-item"><div class="deal-title"><a href="https://webpromo.pipedrive.com/deal/'+d.id+'" target="_blank">'+title+'</a></div><div class="comment-text">'+comment+'</div><div class="meta">'+owner+' · '+val+'</div></div>';
+  }).join('')||'<p style="color:#888">Немає угод</p>';
+  document.getElementById('loss-comments-modal').style.display='flex';
+}
+
+function renderMonthlyTrend(deals){
+  var box=document.getElementById('chart-monthly-trend');
+  var months={};
+  deals.forEach(function(d){
+    if(!d.add_time)return;
+    var m=String(d.add_time).substring(0,7);
+    if(!months[m])months[m]={created:0,won:0,lost:0};
+    months[m].created++;
+    if(d.status==='won')months[m].won++;
+    else if(d.status==='lost')months[m].lost++;
+  });
+  var keys=Object.keys(months).sort();
+  if(!keys.length){box.style.display='none';return;}
+  var dt=new google.visualization.DataTable();
+  dt.addColumn('string','Місяць');dt.addColumn('number','Створено');dt.addColumn('number','Виграно');dt.addColumn('number','Програно');
+  keys.forEach(function(k){var m=months[k];dt.addRow([k,m.created,m.won,m.lost]);});
+  box.innerHTML='<div class="chart-title">Динаміка КП по місяцях</div><div id="chart-monthly-canvas" style="height:320px"></div>';
+  box.style.display='block';
+  new google.visualization.LineChart(document.getElementById('chart-monthly-canvas')).draw(dt,{
+    colors:['#333','#27ae60','#e74c3c'],legend:{position:'top'},
+    chartArea:{width:'88%',height:'72%'},pointSize:5,curveType:'function'
+  });
+}
+
+function renderConvByManager(deals){
+  var box=document.getElementById('chart-conv-manager');
+  var byMgr={};
+  deals.forEach(function(d){
+    var n=d.owner_name||'(не вказано)';
+    if(!byMgr[n])byMgr[n]={total:0,won:0,lost:0,open:0};
+    byMgr[n].total++;byMgr[n][d.status]=(byMgr[n][d.status]||0)+1;
+  });
+  var rows=Object.keys(byMgr).map(function(k){var m=byMgr[k];m.name=k;m.winRate=m.total>0?Math.round(m.won/m.total*100):0;return m;}).sort(function(a,b){return b.total-a.total;});
+  if(!rows.length){box.style.display='none';return;}
+  var dt=new google.visualization.DataTable();
+  dt.addColumn('string','Менеджер');dt.addColumn('number','Виграні');dt.addColumn('number','Програні');dt.addColumn('number','Відкриті');dt.addColumn({type:'string',role:'annotation'});
+  rows.forEach(function(m){dt.addRow([m.name,m.won,m.lost,m.open,m.winRate+'%']);});
+  box.innerHTML='<div class="chart-title">Конверсія по менеджерах (win-rate %)</div><div id="chart-mgr-canvas" style="height:360px"></div>';
+  box.style.display='block';
+  new google.visualization.ColumnChart(document.getElementById('chart-mgr-canvas')).draw(dt,{
+    isStacked:true,colors:['#27ae60','#e74c3c','#3498db'],legend:{position:'top'},
+    chartArea:{width:'85%',height:'65%'},hAxis:{slantedText:true,slantedTextAngle:30},
+    annotations:{alwaysOutside:true,textStyle:{fontSize:11,color:'#333'}}
+  });
+}
+
+function renderHeatmapStageManager(deals,preset){
+  var box=document.getElementById('chart-heatmap');
+  var stages=(preset&&preset.funnelStages)||[];
+  if(!stages.length){box.style.display='none';return;}
+  var mgrs={};
+  deals.forEach(function(d){var n=d.owner_name||'(не вказано)';if(!mgrs[n])mgrs[n]={};mgrs[n][d.stage_id]=(mgrs[n][d.stage_id]||0)+1;});
+  var mgrList=Object.keys(mgrs).sort(function(a,b){
+    var ta=0,tb=0;stages.forEach(function(s){ta+=mgrs[a][s.id]||0;tb+=mgrs[b][s.id]||0;});
+    return tb-ta;
+  });
+  if(!mgrList.length){box.style.display='none';return;}
+  var max=0;mgrList.forEach(function(m){stages.forEach(function(s){var v=mgrs[m][s.id]||0;if(v>max)max=v;});});
+  var html='<div class="chart-title">Карта: Менеджер × Етап (де застрягли КП)</div><div style="overflow-x:auto"><table class="heatmap-table"><thead><tr><th>Менеджер</th>';
+  stages.forEach(function(s){html+='<th>'+esc(s.name)+'</th>';});html+='<th>Всього</th></tr></thead><tbody>';
+  mgrList.forEach(function(m){
+    html+='<tr><td class="mgr">'+esc(m)+'</td>';var total=0;
+    stages.forEach(function(s){
+      var v=mgrs[m][s.id]||0;total+=v;
+      var bg=heatColor(v,max);
+      html+='<td class="cell" style="background:'+bg+'">'+(v||'')+'</td>';
+    });
+    html+='<td class="mgr">'+total+'</td></tr>';
+  });
+  html+='</tbody></table></div><div class="heatmap-legend">Чим темніша клітинка — тим більше КП у менеджера на цьому етапі</div>';
+  box.innerHTML=html;box.style.display='block';
+}
+
+function heatColor(v,max){
+  if(!v||max<=0)return '#fff';
+  var t=v/max;var r=Math.round(255-(255-49)*t),g=Math.round(255-(255-122)*t),b=Math.round(255-(255-226)*t);
+  return 'rgb('+r+','+g+','+b+')';
 }
 
 function renderSummary(t){

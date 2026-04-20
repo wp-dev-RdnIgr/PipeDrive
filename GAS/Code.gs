@@ -75,10 +75,29 @@ function getProductNames() {
 
 function refreshAllData(dateFrom, dateTo) {
   try {
+    var start = Date.now();
     var opts = {method:'post', contentType:'application/json', muteHttpExceptions:true,
       payload:JSON.stringify({entity:'all', dateFrom:dateFrom, dateTo:dateTo})};
-    var resp = UrlFetchApp.fetch(N8N_SYNC, opts);
-    return JSON.parse(resp.getContentText());
+    UrlFetchApp.fetch(N8N_SYNC, opts);
+    var elapsed = Math.round((Date.now() - start) / 1000);
+    // n8n sync webhook replies with a Telegram API response rather than
+    // structured sync stats, so we read authoritative counts from the DB.
+    var rows = dbQueryRows(
+      "SELECT 'deals' AS entity, COUNT(*)::bigint AS total FROM pipedrive.deals WHERE add_time >= '" + dateFrom + "' AND add_time < ('" + dateTo + "'::date + INTERVAL '1 day')" +
+      " UNION ALL SELECT 'persons', COUNT(*) FROM pipedrive.persons" +
+      " UNION ALL SELECT 'organizations', COUNT(*) FROM pipedrive.organizations" +
+      " UNION ALL SELECT 'activities', COUNT(*) FROM pipedrive.activities" +
+      " UNION ALL SELECT 'products', COUNT(*) FROM pipedrive.products" +
+      " UNION ALL SELECT 'notes', COUNT(*) FROM pipedrive.notes"
+    );
+    var order = {deals:1, persons:2, organizations:3, activities:4, products:5, notes:6};
+    rows.sort(function(a,b){return (order[a.entity]||99)-(order[b.entity]||99);});
+    var results = rows.map(function(r){
+      var n = Number(r.total) || 0;
+      return {entity:r.entity, total:n, inserted:n, errors:0, elapsed:0};
+    });
+    if (results.length) results[0].elapsed = elapsed;
+    return {results: results};
   } catch(e) {
     return {error: e.message || String(e)};
   }

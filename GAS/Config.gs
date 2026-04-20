@@ -93,6 +93,15 @@ var PRESET_REPORTS = [
   {
     id:'commercial_proposals',
     name:'Комерційні пропозиції',
+    enhanced:true,
+    funnelStages:[
+      {id:8,name:'Підготовка пропозицій'},
+      {id:9,name:'Презентація пропозицій'},
+      {id:10,name:'Прийняття рішення'},
+      {id:13,name:'Відкладено'},
+      {id:11,name:'Підготовка договору'},
+      {id:14,name:'Старт проекту'}
+    ],
     andConditions:[
       {field_id:12463,operator:'IS NOT NULL',value:''},
       {field_id:12465,operator:'>=',value:''},
