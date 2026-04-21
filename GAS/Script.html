@@ -290,8 +290,67 @@ function applyPreset(id){
 }
 function getActivePresetId(){return _activePresetId;}
 
-function openPresetEditor(id){/* wired in next commit */ alert('Редактор пресетів: наступний коміт');}
-function deletePresetConfirm(id){/* wired in next commit */ alert('Видалення: наступний коміт');}
+var _editingPresetId=null;
+function openPresetEditor(id){
+  _editingPresetId=id||null;
+  var modal=document.getElementById('preset-editor-modal');
+  var nameEl=document.getElementById('preset-editor-name');
+  var iconEl=document.getElementById('preset-editor-icon');
+  var descEl=document.getElementById('preset-editor-desc');
+  document.getElementById('preset-editor-error').textContent='';
+  document.getElementById('preset-editor-title').textContent=id?'Редагувати звіт':'Новий звіт';
+  if(id){
+    var p=presets.find(function(x){return x.id===id;})||{};
+    nameEl.value=p.name||'';iconEl.value=p.icon||'';descEl.value=p.description||'';
+  }else{nameEl.value='';iconEl.value='';descEl.value='';}
+  refreshPresetFilterSummary();
+  modal.style.display='flex';setTimeout(function(){nameEl.focus();},50);
+}
+function refreshPresetFilterSummary(){
+  var conds=collectConditionsSafe();
+  var sum=document.getElementById('preset-editor-filter-summary');
+  if(!conds||!conds.length){sum.innerHTML='<span style="color:var(--gray-400)">Панель фільтрів порожня — звіт збережеться без умов.</span>';return;}
+  sum.innerHTML=conds.map(function(c){
+    var fld=fields.find(function(f){return f.field_id===c.field_id;});
+    var name=fld?fld.label:'field '+c.field_id;
+    var v=Array.isArray(c.value)?c.value.join(', '):c.value;
+    return '<span class="filter-chip">'+esc(name)+' '+esc(c.operator)+' '+esc(String(v||''))+'</span>';
+  }).join(' ');
+}
+function collectConditionsSafe(){
+  try{hideError();var c=collectConditions();hideError();return c||[];}catch(e){return [];}
+}
+function savePresetFromEditor(){
+  var name=(document.getElementById('preset-editor-name').value||'').trim();
+  var icon=(document.getElementById('preset-editor-icon').value||'').trim().toUpperCase();
+  var desc=(document.getElementById('preset-editor-desc').value||'').trim();
+  var err=document.getElementById('preset-editor-error');err.textContent='';
+  if(!name){err.textContent='Введіть назву';return;}
+  var filters=collectConditionsSafe();
+  var id=_editingPresetId||('custom_'+Date.now()+'_'+Math.floor(Math.random()*9999));
+  var payload={id:id,name:name,icon:icon,description:desc,filters:filters,enhanced:false};
+  var btn=document.getElementById('preset-editor-save-btn');btn.disabled=true;btn.innerHTML='<span class="ai-spinner"></span>Збереження...';
+  google.script.run.withSuccessHandler(function(r){
+    btn.disabled=false;btn.textContent='Зберегти';
+    if(r&&r.error){err.textContent=r.error;return;}
+    document.getElementById('preset-editor-modal').style.display='none';
+    refreshPresetsFromDB();
+    _activePresetId=id;setTimeout(renderPresetList,300);
+  }).withFailureHandler(function(e){
+    btn.disabled=false;btn.textContent='Зберегти';err.textContent=e.message||String(e);
+  }).saveCustomPreset(payload);
+}
+function deletePresetConfirm(id){
+  var p=presets.find(function(x){return x.id===id;});
+  if(!p)return;
+  if(p.isBuiltin){alert('Вбудовані звіти не можна видаляти');return;}
+  if(!confirm('Видалити звіт «'+p.name+'»?'))return;
+  google.script.run.withSuccessHandler(function(r){
+    if(r&&r.error){alert(r.error);return;}
+    if(_activePresetId===id)_activePresetId=null;
+    refreshPresetsFromDB();
+  }).deleteCustomPreset(id);
+}
 
 // ===== SEARCHABLE SELECT =====
 // Лёгкий dropdown с поиском, группами и экранированием.
