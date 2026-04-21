@@ -630,7 +630,7 @@ function buildSSel(opts){
 document.addEventListener('click',function(){document.querySelectorAll('.ssel-drop.open').forEach(function(d){d.classList.remove('open');});});
 
 // ===== FILTER ROWS =====
-function addFilterRow(){window._presetOrConditions=[];window._presetColumns=null;window._presetSheetFilters=null;
+function addFilterRow(){
   var div=document.createElement('div');div.className='filter-row';
   var fs=document.createElement('select');fs.className='field-select';
   var def=document.createElement('option');def.value='';def.textContent='— Оберіть поле —';fs.appendChild(def);
