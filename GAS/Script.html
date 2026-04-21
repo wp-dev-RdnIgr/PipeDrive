@@ -814,15 +814,9 @@ var FIELD_ID_TO_SQL={
 };
 
 function runReport(){
-  var selVal=getActivePresetId();
-  var pr=selVal?presets.find(function(p){return p.id===selVal;}):null;
-  if(pr&&pr.sheetFilters){
-    showLoading(true);hideError();document.getElementById('report-section').style.display='none';
-    var gb=document.getElementById('group-by').value;
-    google.script.run.withSuccessHandler(function(r){showLoading(false);if(r.error){showError(r.error);return;}lastData=r;renderReport(r);saveCurrentState();}).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildReportFromDB(pr.sheetFilters,gb);
-    return;
-  }
-  window._presetColumns=null;
+  // Always use UI conditions — the filter panel is the single source of
+  // truth. Preset-level sheetFilters are ignored so any user edit (add,
+  // remove, change) is reflected in the SQL that goes to the server.
   var c=collectConditions();if(!c)return;showLoading(true);hideError();
   document.getElementById('report-section').style.display='none';
   // Convert field_id conditions to SQL filters
