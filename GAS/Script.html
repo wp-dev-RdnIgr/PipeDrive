@@ -203,7 +203,7 @@ document.addEventListener('DOMContentLoaded',function(){
   google.script.run.withSuccessHandler(function(u){users=u;}).getUsersConfig();
   google.script.run.withSuccessHandler(function(s){stages=s;}).getAllStages();
   google.script.run.withSuccessHandler(function(o){opLabels=o;}).getOperatorsLabels();
-  google.script.run.withSuccessHandler(function(p){presets=p;initPresets();refreshPresetsFromDB();setTimeout(routeFromHash,200);}).getPresetReports();
+  google.script.run.withSuccessHandler(function(p){presets=p;initPresets();refreshPresetsFromDB();updateReportHeader();setTimeout(routeFromHash,200);}).getPresetReports();
   google.script.run.withSuccessHandler(function(p){productNames=p||[];}).getProductNames();
   // Override hardcoded data with real values from DB
   google.script.run.withSuccessHandler(function(u){if(u&&u.length)users=u.map(function(r){return {id:r.id,name:r.name,active:r.active};});}).getUsersFromDB();
@@ -310,7 +310,10 @@ function renderPresetList(){
   clear.innerHTML='<div class="preset-icon">—</div><div class="preset-meta"><div class="preset-name">Без шаблону</div><div class="preset-desc">Ручні фільтри</div></div>';
   clear.onclick=function(){applyPreset(null);};
   wrap.appendChild(clear);
-  var filtered=presets.filter(function(p){return !q||(p.name+' '+(p.description||'')).toLowerCase().indexOf(q)>=0;});
+  var filtered=presets.filter(function(p){
+    if(p.id&&p.id.indexOf('draft_')===0)return false;
+    return !q||(p.name+' '+(p.description||'')).toLowerCase().indexOf(q)>=0;
+  });
   if(!filtered.length){var e=document.createElement('div');e.className='preset-empty';e.textContent=q?'Нічого не знайдено':'Немає збережених звітів';wrap.appendChild(e);return;}
   filtered.forEach(function(p){
     var item=document.createElement('div');item.className='preset-item'+(p.id===_activePresetId?' active':'');
@@ -366,7 +369,33 @@ function _applyPresetInternal(id){
   setTimeout(snapshotFilters,50);
 }
 function getActivePresetId(){return _activePresetId;}
-function updateReportHeader(){/* hooked up in commit 3 */}
+
+function newReportDraft(){
+  if(isDirty()){confirmLeave(function(){newReportDraft();});return;}
+  var draftId='draft_'+Date.now();
+  // Register a placeholder preset so routing + header know about it
+  presets=presets.concat([{id:draftId,name:'Новий звіт',icon:'NEW',description:'Чернетка',unified:true,filters:[],isBuiltin:false}]);
+  reportStates[draftId]={filters:[],lastData:null,groupBy:'none',currentPage:1,sortCol:null,sortDir:'asc'};
+  applyPreset(draftId);
+}
+function updateReportHeader(){
+  var title=document.getElementById('rh-title');var desc=document.getElementById('rh-desc');
+  var actions=document.getElementById('rh-actions');if(!title)return;
+  if(_activePresetId&&_activePresetId.indexOf('draft_')===0){
+    title.textContent='Новий звіт';desc.textContent='Налаштуйте фільтри та збережіть';
+  }else if(_activePresetId){
+    var p=presets.find(function(x){return x.id===_activePresetId;});
+    title.textContent=p?p.name:'Звіт';desc.textContent=(p&&p.description)||(p&&p.isBuiltin?'Вбудований звіт':'Користувацький звіт');
+  }else{
+    title.textContent='Без шаблону';desc.textContent='Ручні фільтри';
+  }
+  actions.innerHTML='';
+  if(_activePresetId&&_activePresetId.indexOf('draft_')!==0){
+    var pencil=document.createElement('button');pencil.className='ghost';pencil.style.fontSize='12px';pencil.style.padding='6px 12px';
+    pencil.textContent='Перейменувати';pencil.onclick=function(){openPresetEditor(_activePresetId);};
+    actions.appendChild(pencil);
+  }
+}
 
 // ===== HASH ROUTING =====
 // #/report/{id} selects a preset; #/report/new opens a fresh draft;
@@ -407,12 +436,14 @@ function isDirty(){
   var now=JSON.stringify(collectConditionsSafe());
   return now!==_presetSnapshot;
 }
+function isDraftActive(){return _activePresetId&&_activePresetId.indexOf('draft_')===0;}
 function refreshDirtyUI(){
   var saveBtn=document.getElementById('btn-save-preset');
   var saveAsBtn=document.getElementById('btn-save-as');
   var hasFilters=collectConditionsSafe().length>0;
-  if(saveBtn)saveBtn.style.display=(_activePresetId && isDirty())?'inline-flex':'none';
-  if(saveAsBtn)saveAsBtn.style.display=(!_activePresetId && hasFilters)?'inline-flex':'none';
+  var realPreset=_activePresetId&&!isDraftActive();
+  if(saveBtn)saveBtn.style.display=(realPreset && isDirty())?'inline-flex':'none';
+  if(saveAsBtn)saveAsBtn.style.display=((!_activePresetId||isDraftActive()) && hasFilters)?'inline-flex':'none';
 }
 function installFilterObserver(){
   var root=document.getElementById('filter-rows');if(!root)return;
@@ -477,16 +508,23 @@ function savePresetFromEditor(){
   var err=document.getElementById('preset-editor-error');err.textContent='';
   if(!name){err.textContent='Введіть назву';return;}
   var filters=collectConditionsSafe();
-  var id=_editingPresetId||('custom_'+Date.now()+'_'+Math.floor(Math.random()*9999));
+  // Drafts become real ids on save so they persist in the sidebar.
+  var isDraft=_editingPresetId&&_editingPresetId.indexOf('draft_')===0;
+  var id=(_editingPresetId&&!isDraft)?_editingPresetId:('custom_'+Date.now()+'_'+Math.floor(Math.random()*9999));
   var payload={id:id,name:name,icon:icon,description:desc,filters:filters,enhanced:false};
   var btn=document.getElementById('preset-editor-save-btn');btn.disabled=true;btn.innerHTML='<span class="ai-spinner"></span>Збереження...';
   google.script.run.withSuccessHandler(function(r){
     btn.disabled=false;btn.textContent='Зберегти';
     if(r&&r.error){err.textContent=r.error;return;}
     document.getElementById('preset-editor-modal').style.display='none';
+    // If this was a draft, carry its in-memory state to the new real id.
+    if(isDraft&&_editingPresetId&&reportStates[_editingPresetId]){
+      reportStates[id]=reportStates[_editingPresetId];delete reportStates[_editingPresetId];
+      presets=presets.filter(function(p){return p.id!==_editingPresetId;});
+    }
     refreshPresetsFromDB();
-    _activePresetId=id;setTimeout(renderPresetList,300);
-    toast(_editingPresetId?'Звіт оновлено':'Звіт створено','success');
+    _activePresetId=id;setHash('report/'+id);setTimeout(function(){renderPresetList();updateReportHeader();},300);
+    toast(isDraft?'Звіт створено':'Звіт оновлено','success');
   }).withFailureHandler(function(e){
     btn.disabled=false;btn.textContent='Зберегти';err.textContent=e.message||String(e);
   }).saveCustomPreset(payload);
