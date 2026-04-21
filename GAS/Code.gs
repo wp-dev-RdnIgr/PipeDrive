@@ -300,3 +300,90 @@ function countDeals(conditions, orConditions) {
     return {error: e.message || String(e)};
   }
 }
+
+// ===== Custom report presets (DB-backed) =====
+function dbExec(sql) {
+  var opts = {method:'post', contentType:'application/json', muteHttpExceptions:true,
+    payload:JSON.stringify({query:sql})};
+  var resp = UrlFetchApp.fetch(N8N_DB, opts);
+  return JSON.parse(resp.getContentText());
+}
+function sqlEscape(s){return String(s==null?'':s).replace(/'/g,"''");}
+
+function listCustomPresets() {
+  try {
+    var rows = dbQueryRows("SELECT id, name, icon, description, config, is_builtin FROM pipedrive.report_presets ORDER BY is_builtin DESC, name");
+    if (!rows.length) {
+      // Auto-seed built-ins on first call so the sidebar is never empty.
+      seedBuiltinPresets();
+      rows = dbQueryRows("SELECT id, name, icon, description, config, is_builtin FROM pipedrive.report_presets ORDER BY is_builtin DESC, name");
+    }
+    return rows.map(function(r){
+      var cfg = r.config;
+      if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch(e) { cfg = {}; } }
+      cfg = cfg || {};
+      return {
+        id: r.id, name: r.name, icon: r.icon || '',
+        description: r.description || '', isBuiltin: !!r.is_builtin,
+        enhanced: !!cfg.enhanced,
+        funnelStages: cfg.funnelStages || null,
+        andConditions: cfg.andConditions || [],
+        orConditions: cfg.orConditions || [],
+        sheetFilters: cfg.sheetFilters || null,
+        columns: cfg.columns || null,
+        filters: cfg.filters || []
+      };
+    });
+  } catch (e) { return []; }
+}
+
+function saveCustomPreset(preset) {
+  try {
+    if (!preset || !preset.id || !preset.name) return {error: 'id і name обовʼязкові'};
+    var id = sqlEscape(preset.id);
+    var name = sqlEscape(preset.name);
+    var icon = sqlEscape(preset.icon || preset.name.substring(0,2).toUpperCase());
+    var desc = sqlEscape(preset.description || '');
+    var config = {
+      enhanced: !!preset.enhanced,
+      filters: preset.filters || [],
+      funnelStages: preset.funnelStages || null,
+      columns: preset.columns || null
+    };
+    var configJson = sqlEscape(JSON.stringify(config));
+    var sql = "INSERT INTO pipedrive.report_presets (id, name, icon, description, config, is_builtin) VALUES ('" + id + "', '" + name + "', '" + icon + "', '" + desc + "', '" + configJson + "'::jsonb, false) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, icon = EXCLUDED.icon, description = EXCLUDED.description, config = EXCLUDED.config, updated_at = NOW() WHERE pipedrive.report_presets.is_builtin = false OR pipedrive.report_presets.id = EXCLUDED.id";
+    dbExec(sql);
+    return {ok: true};
+  } catch (e) { return {error: e.message || String(e)}; }
+}
+
+function deleteCustomPreset(id) {
+  try {
+    if (!id) return {error: 'id обовʼязковий'};
+    dbExec("DELETE FROM pipedrive.report_presets WHERE id = '" + sqlEscape(id) + "' AND is_builtin = false");
+    return {ok: true};
+  } catch (e) { return {error: e.message || String(e)}; }
+}
+
+// Seed builtin presets from Config.gs once (idempotent via ON CONFLICT DO NOTHING).
+function seedBuiltinPresets() {
+  try {
+    var count = 0;
+    PRESET_REPORTS.forEach(function(p){
+      var cfg = {
+        enhanced: !!p.enhanced,
+        funnelStages: p.funnelStages || null,
+        andConditions: p.andConditions || [],
+        orConditions: p.orConditions || [],
+        sheetFilters: p.sheetFilters || null,
+        columns: p.columns || null
+      };
+      var sql = "INSERT INTO pipedrive.report_presets (id, name, icon, description, config, is_builtin) VALUES ('" +
+        sqlEscape(p.id) + "', '" + sqlEscape(p.name) + "', '" + sqlEscape(p.icon || '') + "', '" +
+        sqlEscape(p.description || '') + "', '" + sqlEscape(JSON.stringify(cfg)) + "'::jsonb, true) ON CONFLICT (id) DO NOTHING";
+      dbExec(sql);
+      count++;
+    });
+    return {ok: true, seeded: count};
+  } catch (e) { return {error: e.message || String(e)}; }
+}

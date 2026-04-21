@@ -15,12 +15,19 @@
       </nav>
     </header>
 
-    <div id="view-report">
-    <section id="presets-panel" class="panel">
-      <h2>Готові звіти</h2>
-      <div id="preset-cards" class="preset-cards"></div>
-    </section>
+    <div id="view-report" class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <h2>Звіти</h2>
+        <button class="icon-btn" title="Новий звіт" onclick="openPresetEditor(null)"><span class="plus-icon"></span></button>
+      </div>
+      <div class="sidebar-search">
+        <input type="text" id="preset-search" placeholder="Пошук звітів..." oninput="renderPresetList()" />
+      </div>
+      <div id="preset-list" class="preset-list"></div>
+    </aside>
 
+    <main class="main">
     <section id="refresh-panel" class="panel">
       <h2>Оновлення даних</h2>
       <div class="refresh-row">
@@ -83,6 +90,7 @@
         <div class="pagination" id="pagination"></div>
       </div>
     </section>
+    </main>
     </div>
 
     <div id="view-ai" style="display:none">
@@ -103,6 +111,29 @@
         </div>
         <div style="font-size:11px;color:var(--gray-400);margin-top:10px">Якщо мікрофон не працює — відкрийте цю сторінку в новій вкладці (іконка ↗ у правому верхньому куті iframe) і дайте дозвіл на мікрофон у браузері.</div>
       </section>
+    </div>
+  </div>
+
+  <!-- Preset editor modal -->
+  <div id="preset-editor-modal" class="modal" style="display:none">
+    <div class="modal-content" style="max-width:520px;text-align:left">
+      <h2 style="text-align:center;margin-bottom:8px" id="preset-editor-title">Новий звіт</h2>
+      <p style="color:var(--gray-500);font-size:13px;margin-bottom:14px;text-align:center">Задайте назву і опишіть звіт. Поточні фільтри з панелі будуть збережені.</p>
+      <label class="form-label">Назва</label>
+      <input id="preset-editor-name" type="text" placeholder="Наприклад: Угоди РРС у Казахстані" class="form-input" />
+      <label class="form-label">Іконка (1–2 символи)</label>
+      <input id="preset-editor-icon" type="text" maxlength="4" placeholder="РР" class="form-input" style="width:120px" />
+      <label class="form-label">Опис</label>
+      <input id="preset-editor-desc" type="text" placeholder="Короткий опис" class="form-input" />
+      <div style="background:var(--gray-50);border-radius:6px;padding:10px 12px;margin:10px 0;border:1px solid var(--gray-100)">
+        <div style="font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Фільтри з панелі</div>
+        <div id="preset-editor-filter-summary" style="font-size:12px;color:var(--gray-700);line-height:1.6"></div>
+      </div>
+      <div id="preset-editor-error" style="color:var(--danger);font-size:12px;margin-bottom:10px;min-height:16px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="ghost" onclick="document.getElementById('preset-editor-modal').style.display='none'">Скасувати</button>
+        <button class="primary" id="preset-editor-save-btn" onclick="savePresetFromEditor()">Зберегти</button>
+      </div>
     </div>
   </div>
 

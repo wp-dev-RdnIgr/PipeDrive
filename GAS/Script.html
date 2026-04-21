@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded',function(){
   google.script.run.withSuccessHandler(function(u){users=u;}).getUsersConfig();
   google.script.run.withSuccessHandler(function(s){stages=s;}).getAllStages();
   google.script.run.withSuccessHandler(function(o){opLabels=o;}).getOperatorsLabels();
-  google.script.run.withSuccessHandler(function(p){presets=p;initPresets();}).getPresetReports();
+  google.script.run.withSuccessHandler(function(p){presets=p;initPresets();refreshPresetsFromDB();}).getPresetReports();
   google.script.run.withSuccessHandler(function(p){productNames=p||[];}).getProductNames();
   // Override hardcoded data with real values from DB
   google.script.run.withSuccessHandler(function(u){if(u&&u.length)users=u.map(function(r){return {id:r.id,name:r.name,active:r.active};});}).getUsersFromDB();
@@ -211,26 +211,64 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 
 // ===== PRESETS =====
 var _activePresetId=null;
-function initPresets(){
-  var wrap=document.getElementById('preset-cards');
-  if(!wrap)return;
+
+function refreshPresetsFromDB(){
+  google.script.run.withSuccessHandler(function(list){
+    if(!list||!list.length)return;
+    // Merge: DB is source of truth for shared attributes; local defs keep
+    // any legacy helpers that the editor did not include.
+    var byId={};presets.forEach(function(p){byId[p.id]=p;});
+    list.forEach(function(p){
+      var base=byId[p.id]||{};
+      byId[p.id]=Object.assign({},base,{
+        id:p.id,name:p.name,icon:p.icon||base.icon||'',description:p.description||'',
+        enhanced:!!p.enhanced,funnelStages:p.funnelStages||base.funnelStages||null,
+        andConditions:p.andConditions&&p.andConditions.length?p.andConditions:(base.andConditions||[]),
+        orConditions:p.orConditions&&p.orConditions.length?p.orConditions:(base.orConditions||[]),
+        sheetFilters:p.sheetFilters||base.sheetFilters||null,
+        columns:p.columns||base.columns||null,
+        filters:p.filters||base.filters||[],
+        isBuiltin:!!p.isBuiltin
+      });
+    });
+    presets=Object.keys(byId).map(function(id){return byId[id];})
+      .sort(function(a,b){return (b.isBuiltin?1:0)-(a.isBuiltin?1:0)||a.name.localeCompare(b.name);});
+    initPresets();
+  }).listCustomPresets();
+}
+function initPresets(){renderPresetList();}
+
+function presetInitials(p){return p.icon||p.name.split(/\s+/).map(function(w){return w[0]||'';}).join('').substring(0,2).toUpperCase();}
+
+function renderPresetList(){
+  var wrap=document.getElementById('preset-list');if(!wrap)return;
+  var q=((document.getElementById('preset-search')||{}).value||'').toLowerCase().trim();
   wrap.innerHTML='';
-  var clearBtn=document.createElement('div');
-  clearBtn.className='preset-card clear';clearBtn.innerHTML='<div><div class="preset-name">Без шаблону</div><div class="preset-desc">Ручні фільтри</div></div>';
-  clearBtn.onclick=function(){applyPreset(null);};
-  wrap.appendChild(clearBtn);
-  presets.forEach(function(p){
-    var card=document.createElement('div');card.className='preset-card';card.dataset.id=p.id;
-    var initials=p.icon||p.name.split(/\s+/).map(function(w){return w[0]||'';}).join('').substring(0,2).toUpperCase();
-    card.innerHTML='<div class="preset-icon">'+esc(initials)+'</div><div><div class="preset-name">'+esc(p.name)+'</div><div class="preset-desc">'+esc(p.description||'Шаблон звіту')+'</div></div>';
-    card.onclick=function(){applyPreset(p.id);};
-    wrap.appendChild(card);
+  var clear=document.createElement('div');
+  clear.className='preset-item clear-item'+(_activePresetId?'':' active');
+  clear.innerHTML='<div class="preset-icon">—</div><div class="preset-meta"><div class="preset-name">Без шаблону</div><div class="preset-desc">Ручні фільтри</div></div>';
+  clear.onclick=function(){applyPreset(null);};
+  wrap.appendChild(clear);
+  var filtered=presets.filter(function(p){return !q||(p.name+' '+(p.description||'')).toLowerCase().indexOf(q)>=0;});
+  if(!filtered.length){var e=document.createElement('div');e.className='preset-empty';e.textContent=q?'Нічого не знайдено':'Немає збережених звітів';wrap.appendChild(e);return;}
+  filtered.forEach(function(p){
+    var item=document.createElement('div');item.className='preset-item'+(p.id===_activePresetId?' active':'');
+    var actions='';
+    if(!p.isBuiltin||p.id==='commercial_proposals'||p.id==='project_starts'||p.id==='tenders'){
+      actions+='<button title="Редагувати" onclick="event.stopPropagation();openPresetEditor(\''+p.id+'\')"><span class="edit-icon"></span></button>';
+    }
+    if(!p.isBuiltin){
+      actions+='<button title="Видалити" onclick="event.stopPropagation();deletePresetConfirm(\''+p.id+'\')"><span class="trash-icon"></span></button>';
+    }
+    item.innerHTML='<div class="preset-icon">'+esc(presetInitials(p))+'</div><div class="preset-meta"><div class="preset-name">'+esc(p.name)+'</div><div class="preset-desc">'+esc(p.description||'Шаблон звіту')+'</div></div><div class="preset-actions">'+actions+'</div>';
+    item.onclick=function(){applyPreset(p.id);};
+    wrap.appendChild(item);
   });
 }
 
 function applyPreset(id){
   _activePresetId=id;
-  document.querySelectorAll('.preset-card').forEach(function(c){c.classList.toggle('active',c.dataset.id===id);});
+  renderPresetList();
   if(!id){document.getElementById('filter-rows').innerHTML='';window._presetOrConditions=[];window._presetColumns=null;window._presetSheetFilters=null;addFilterRow();return;}
   var pr=presets.find(function(p){return p.id===id;});if(!pr)return;
   document.getElementById('filter-rows').innerHTML='';
@@ -251,6 +289,68 @@ function applyPreset(id){
   if(pr.filters)pr.filters.forEach(function(f){addFilterRowWithData(f);});
 }
 function getActivePresetId(){return _activePresetId;}
+
+var _editingPresetId=null;
+function openPresetEditor(id){
+  _editingPresetId=id||null;
+  var modal=document.getElementById('preset-editor-modal');
+  var nameEl=document.getElementById('preset-editor-name');
+  var iconEl=document.getElementById('preset-editor-icon');
+  var descEl=document.getElementById('preset-editor-desc');
+  document.getElementById('preset-editor-error').textContent='';
+  document.getElementById('preset-editor-title').textContent=id?'Редагувати звіт':'Новий звіт';
+  if(id){
+    var p=presets.find(function(x){return x.id===id;})||{};
+    nameEl.value=p.name||'';iconEl.value=p.icon||'';descEl.value=p.description||'';
+  }else{nameEl.value='';iconEl.value='';descEl.value='';}
+  refreshPresetFilterSummary();
+  modal.style.display='flex';setTimeout(function(){nameEl.focus();},50);
+}
+function refreshPresetFilterSummary(){
+  var conds=collectConditionsSafe();
+  var sum=document.getElementById('preset-editor-filter-summary');
+  if(!conds||!conds.length){sum.innerHTML='<span style="color:var(--gray-400)">Панель фільтрів порожня — звіт збережеться без умов.</span>';return;}
+  sum.innerHTML=conds.map(function(c){
+    var fld=fields.find(function(f){return f.field_id===c.field_id;});
+    var name=fld?fld.label:'field '+c.field_id;
+    var v=Array.isArray(c.value)?c.value.join(', '):c.value;
+    return '<span class="filter-chip">'+esc(name)+' '+esc(c.operator)+' '+esc(String(v||''))+'</span>';
+  }).join(' ');
+}
+function collectConditionsSafe(){
+  try{hideError();var c=collectConditions();hideError();return c||[];}catch(e){return [];}
+}
+function savePresetFromEditor(){
+  var name=(document.getElementById('preset-editor-name').value||'').trim();
+  var icon=(document.getElementById('preset-editor-icon').value||'').trim().toUpperCase();
+  var desc=(document.getElementById('preset-editor-desc').value||'').trim();
+  var err=document.getElementById('preset-editor-error');err.textContent='';
+  if(!name){err.textContent='Введіть назву';return;}
+  var filters=collectConditionsSafe();
+  var id=_editingPresetId||('custom_'+Date.now()+'_'+Math.floor(Math.random()*9999));
+  var payload={id:id,name:name,icon:icon,description:desc,filters:filters,enhanced:false};
+  var btn=document.getElementById('preset-editor-save-btn');btn.disabled=true;btn.innerHTML='<span class="ai-spinner"></span>Збереження...';
+  google.script.run.withSuccessHandler(function(r){
+    btn.disabled=false;btn.textContent='Зберегти';
+    if(r&&r.error){err.textContent=r.error;return;}
+    document.getElementById('preset-editor-modal').style.display='none';
+    refreshPresetsFromDB();
+    _activePresetId=id;setTimeout(renderPresetList,300);
+  }).withFailureHandler(function(e){
+    btn.disabled=false;btn.textContent='Зберегти';err.textContent=e.message||String(e);
+  }).saveCustomPreset(payload);
+}
+function deletePresetConfirm(id){
+  var p=presets.find(function(x){return x.id===id;});
+  if(!p)return;
+  if(p.isBuiltin){alert('Вбудовані звіти не можна видаляти');return;}
+  if(!confirm('Видалити звіт «'+p.name+'»?'))return;
+  google.script.run.withSuccessHandler(function(r){
+    if(r&&r.error){alert(r.error);return;}
+    if(_activePresetId===id)_activePresetId=null;
+    refreshPresetsFromDB();
+  }).deleteCustomPreset(id);
+}
 
 // ===== SEARCHABLE SELECT =====
 // Лёгкий dropdown с поиском, группами и экранированием.
