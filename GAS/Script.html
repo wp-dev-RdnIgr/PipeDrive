@@ -153,6 +153,31 @@ function applyAIFilters(filters){
   if(!filters.length)addFilterRow();
 }
 var fields=[],pipelines=[],users=[],stages={},opLabels={},presets=[],lastData=null,sortCol=null,sortDir='asc';
+// Per-preset state cache so switching reports is instant. Key '_none' is
+// the "Без шаблону" manual workflow.
+var reportStates={};
+function getStateKey(){return _activePresetId||'_none';}
+function saveCurrentState(){
+  var key=getStateKey();
+  reportStates[key]={
+    filters:collectConditionsSafe(),
+    lastData:lastData,
+    groupBy:(document.getElementById('group-by')||{}).value||'none',
+    currentPage:currentPage||1,
+    sortCol:sortCol,sortDir:sortDir
+  };
+}
+function restoreState(id){
+  var state=reportStates[id||'_none'];if(!state)return false;
+  document.getElementById('filter-rows').innerHTML='';
+  (state.filters||[]).forEach(addFilterRowWithData);
+  var gb=document.getElementById('group-by');if(gb)gb.value=state.groupBy||'none';
+  lastData=state.lastData||null;
+  currentPage=state.currentPage||1;sortCol=state.sortCol||null;sortDir=state.sortDir||'asc';
+  if(lastData){renderReport(lastData);}
+  else{document.getElementById('report-section').style.display='none';}
+  return true;
+}
 var productNames=[];
 window._presetOrConditions=[];window._presetColumns=null;
 
@@ -303,11 +328,17 @@ function renderPresetList(){
 
 function applyPreset(id){
   if(isDirty()){confirmLeave(function(){applyPreset(id);});return;}
+  // Persist the outgoing preset's UI state before rebuilding the panel.
+  saveCurrentState();
   _activePresetId=id;
   renderPresetList();
-  if(!id){document.getElementById('filter-rows').innerHTML='';window._presetOrConditions=[];window._presetColumns=null;window._presetSheetFilters=null;addFilterRow();_presetSnapshot=null;refreshDirtyUI();return;}
+  updateReportHeader();
+  // If we have cached state for this preset, restore it instantly.
+  if(restoreState(id)){setTimeout(snapshotFilters,50);return;}
+  if(!id){document.getElementById('filter-rows').innerHTML='';window._presetOrConditions=[];window._presetColumns=null;window._presetSheetFilters=null;addFilterRow();_presetSnapshot=null;refreshDirtyUI();document.getElementById('report-section').style.display='none';return;}
   var pr=presets.find(function(p){return p.id===id;});if(!pr)return;
   document.getElementById('filter-rows').innerHTML='';
+  document.getElementById('report-section').style.display='none';
   window._presetOrConditions=pr.orConditions||[];
   window._presetColumns=pr.columns||null;
   window._presetSheetFilters=pr.sheetFilters||null;
@@ -330,6 +361,7 @@ function applyPreset(id){
   setTimeout(snapshotFilters,50);
 }
 function getActivePresetId(){return _activePresetId;}
+function updateReportHeader(){/* hooked up in commit 3 */}
 
 // ===== DIRTY STATE TRACKING =====
 var _presetSnapshot=null;
@@ -713,7 +745,7 @@ function runReport(){
   if(pr&&pr.sheetFilters){
     showLoading(true);hideError();document.getElementById('report-section').style.display='none';
     var gb=document.getElementById('group-by').value;
-    google.script.run.withSuccessHandler(function(r){showLoading(false);if(r.error){showError(r.error);return;}lastData=r;renderReport(r);}).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildReportFromDB(pr.sheetFilters,gb);
+    google.script.run.withSuccessHandler(function(r){showLoading(false);if(r.error){showError(r.error);return;}lastData=r;renderReport(r);saveCurrentState();}).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildReportFromDB(pr.sheetFilters,gb);
     return;
   }
   window._presetColumns=null;
@@ -729,7 +761,7 @@ function runReport(){
     return {field:col,op:opMap[cond.operator]||'=',value:cond.value};
   }).filter(function(x){return x;});
   var gb=document.getElementById('group-by').value;
-  google.script.run.withSuccessHandler(function(r){showLoading(false);if(r.error){showError(r.error);return;}if(r._debug){document.getElementById('debug-filters').textContent=JSON.stringify(r._debug.inputFilters,null,2);document.getElementById('debug-sql').textContent=r._debug.sql;document.getElementById('debug-count').textContent='Знайдено угод: '+r._debug.dealsCount;document.getElementById('debug-modal').style.display='flex';}lastData=r;renderReport(r);}).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildReportFromDB(dbFilters,gb);
+  google.script.run.withSuccessHandler(function(r){showLoading(false);if(r.error){showError(r.error);return;}if(r._debug){document.getElementById('debug-filters').textContent=JSON.stringify(r._debug.inputFilters,null,2);document.getElementById('debug-sql').textContent=r._debug.sql;document.getElementById('debug-count').textContent='Знайдено угод: '+r._debug.dealsCount;document.getElementById('debug-modal').style.display='flex';}lastData=r;renderReport(r);saveCurrentState();}).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildReportFromDB(dbFilters,gb);
 }
 
 function renderReport(r){
