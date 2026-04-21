@@ -45,6 +45,8 @@
       <div class="filter-actions">
         <button id="btn-add" onclick="addFilterRow()">+ Додати умову</button>
         <div class="right-actions">
+          <button id="btn-save-preset" class="ghost" style="display:none" onclick="savePresetChanges()">Зберегти зміни</button>
+          <button id="btn-save-as" class="ghost" style="display:none" onclick="openPresetEditor(null)">Зберегти як звіт</button>
           <select id="group-by">
             <option value="none">Без групування</option>
             <option value="owner">За власником</option>
@@ -111,6 +113,19 @@
         </div>
         <div style="font-size:11px;color:var(--gray-400);margin-top:10px">Якщо мікрофон не працює — відкрийте цю сторінку в новій вкладці (іконка ↗ у правому верхньому куті iframe) і дайте дозвіл на мікрофон у браузері.</div>
       </section>
+    </div>
+  </div>
+
+  <!-- Unsaved-changes confirmation modal -->
+  <div id="leave-confirm-modal" class="modal" style="display:none">
+    <div class="modal-content" style="max-width:440px;text-align:left">
+      <h2 style="text-align:center;margin-bottom:8px">Незбережені зміни</h2>
+      <p style="color:var(--gray-600);font-size:13px;margin-bottom:16px;text-align:center">У звіті є незбережені зміни. Що робити?</p>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="ghost" onclick="leaveConfirm('cancel')">Скасувати</button>
+        <button class="ghost" onclick="leaveConfirm('discard')">Відкинути зміни</button>
+        <button class="primary" onclick="leaveConfirm('save')">Зберегти та піти</button>
+      </div>
     </div>
   </div>
 
