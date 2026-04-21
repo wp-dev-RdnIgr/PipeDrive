@@ -290,7 +290,9 @@ function refreshPresetsFromDB(done){
           andConditions:unified?[]:(p.andConditions&&p.andConditions.length?p.andConditions:(base.andConditions||[])),
           orConditions:unified?[]:(p.orConditions&&p.orConditions.length?p.orConditions:(base.orConditions||[])),
           sheetFilters:unified?null:(p.sheetFilters||base.sheetFilters||null),
-          columns:p.columns||base.columns||null,
+          // For built-in presets, always prefer Config.gs columns so code
+        // changes (widths, lookups, new formatters) propagate without a re-save.
+        columns:p.isBuiltin?(base.columns||p.columns||null):(p.columns||base.columns||null),
           filters:p.filters||base.filters||[],
           isBuiltin:!!p.isBuiltin
         });
@@ -1148,19 +1150,59 @@ function buildPageNumbers(cur,total){
 }
 function gotoPage(n){if(!lastData||!lastData.deals)return;var pages=Math.max(1,Math.ceil(lastData.deals.length/PAGE_SIZE));if(n<1||n>pages)return;currentPage=n;renderPage(lastData.deals);window.scrollTo({top:document.querySelector('.table-wrap').offsetTop-20,behavior:'smooth'});}
 
+var _cellData={},_cellId=0;
+function escAttr(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function lookupValue(fieldId,val){
+  if(val===null||val===undefined||val==='')return '';
+  var f=fields&&fields.find(function(x){return x.field_id===fieldId;});
+  if(!f||!f.options)return val;
+  // "set" fields may hold comma-separated ids
+  var ids=String(val).split(',').map(function(x){return x.trim();});
+  return ids.map(function(id){var m=f.options.find(function(o){return String(o.id)===id;});return m?m.label:id;}).join(', ');
+}
+function renderCell(c,d){
+  var v=d[c.key];
+  var style=c.width?' style="max-width:'+c.width+'px"':'';
+  if(c.deal_link){
+    var title=String(v||'(без назви)');
+    return '<td'+style+' class="cell-trunc"><a href="https://webpromo.pipedrive.com/deal/'+d.id+'" target="_blank" title="'+escAttr(title)+'">'+esc(title)+'</a></td>';
+  }
+  if(c.external_link){
+    if(!v)return '<td'+style+'><span class="cell-empty">—</span></td>';
+    return '<td'+style+' class="cell-link"><a href="'+escAttr(v)+'" target="_blank" title="'+escAttr(v)+'">Відкрити</a></td>';
+  }
+  if(c.expandable){
+    if(v===null||v===undefined||v==='')return '<td'+style+'><span class="cell-empty">—</span></td>';
+    var text=String(v);var short=text.length>80?text.substring(0,80)+'…':text;
+    var id='c_'+(_cellId++);_cellData[id]=text;_cellData[id+'_t']=c.label;
+    return '<td'+style+' class="cell-expand"><div class="cell-preview" title="'+escAttr(text)+'">'+esc(short)+'</div>'+
+      (text.length>80?'<button class="cell-link-btn" onclick="showCellText(\''+id+'\')">Докладніше</button>':'')+'</td>';
+  }
+  if(c.money){
+    if(v===null||v===undefined||v==='')return '<td'+style+' class="cell-money">—</td>';
+    return '<td'+style+' class="cell-money">'+formatMoney(v)+'&nbsp;₴</td>';
+  }
+  if(c.date)return '<td'+style+'>'+formatDate(v)+'</td>';
+  if(c.lookup){
+    var label=lookupValue(c.lookup,v);
+    return '<td'+style+(c.truncate?' class="cell-trunc" title="'+escAttr(label)+'"':'')+'>'+esc(String(label))+'</td>';
+  }
+  if(c.badge)return '<td><span class="status-badge status-'+v+'">'+statusLabel(v)+'</span></td>';
+  if(c.link&&v)return '<td'+style+' class="cell-link"><a href="'+escAttr(v)+'" target="_blank">Відкрити</a></td>';
+  var txt=String(v==null?'':v);
+  if(!txt)return '<td'+style+'><span class="cell-empty">—</span></td>';
+  return '<td'+style+(c.truncate?' class="cell-trunc" title="'+escAttr(txt)+'"':'')+'>'+esc(txt)+'</td>';
+}
+function showCellText(id){
+  document.getElementById('cell-text-title').textContent=_cellData[id+'_t']||'Текст';
+  document.getElementById('cell-text-body').textContent=_cellData[id]||'';
+  document.getElementById('cell-text-modal').style.display='flex';
+}
 function fillTableBody(deals){
   var cols=getActiveCols();
+  _cellData={};_cellId=0;
   document.getElementById('deals-tbody').innerHTML=deals.map(function(d){
-    return '<tr>'+cols.map(function(c){
-      var v=d[c.key]||'';
-      if(c.key==='title')return '<td><a href="https://webpromo.pipedrive.com/deal/'+d.id+'" target="_blank">'+esc(v)+'</a></td>';
-      if(c.link&&v)return '<td><a href="'+esc(v)+'" target="_blank">Відкрити</a></td>';
-      if(c.stage&&d.stage_name)return '<td>'+esc(d.stage_name)+'</td>';
-      if(c.badge)return '<td><span class="status-badge status-'+v+'">'+statusLabel(v)+'</span></td>';
-      if(c.money)return '<td style="text-align:right">'+formatMoney(v)+'</td>';
-      if(c.date)return '<td>'+formatDate(v)+'</td>';
-      return '<td>'+esc(String(v))+'</td>';
-    }).join('')+'</tr>';
+    return '<tr>'+cols.map(function(c){return renderCell(c,d);}).join('')+'</tr>';
   }).join('');
 }
 function sortTable(col){
