@@ -1151,6 +1151,8 @@ function buildPageNumbers(cur,total){
 function gotoPage(n){if(!lastData||!lastData.deals)return;var pages=Math.max(1,Math.ceil(lastData.deals.length/PAGE_SIZE));if(n<1||n>pages)return;currentPage=n;renderPage(lastData.deals);window.scrollTo({top:document.querySelector('.table-wrap').offsetTop-20,behavior:'smooth'});}
 
 var _cellData={},_cellId=0;
+var CURRENCY_SYM={UAH:'₴',USD:'$',EUR:'€',KZT:'₸',HRK:'kn',PLN:'zł',GBP:'£'};
+function currencySymbol(code){if(!code)return '₴';return CURRENCY_SYM[code]||code;}
 function escAttr(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function lookupValue(fieldId,val){
   if(val===null||val===undefined||val==='')return '';
@@ -1180,7 +1182,8 @@ function renderCell(c,d){
   }
   if(c.money){
     if(v===null||v===undefined||v==='')return '<td'+style+' class="cell-money">—</td>';
-    return '<td'+style+' class="cell-money">'+formatMoney(v)+'&nbsp;₴</td>';
+    var sym=currencySymbol(d.currency);
+    return '<td'+style+' class="cell-money">'+formatMoney(v)+'&nbsp;'+esc(sym)+'</td>';
   }
   if(c.date)return '<td'+style+'>'+formatDate(v)+'</td>';
   if(c.lookup){
