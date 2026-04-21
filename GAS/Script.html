@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded',function(){
   google.script.run.withSuccessHandler(function(u){users=u;}).getUsersConfig();
   google.script.run.withSuccessHandler(function(s){stages=s;}).getAllStages();
   google.script.run.withSuccessHandler(function(o){opLabels=o;}).getOperatorsLabels();
-  google.script.run.withSuccessHandler(function(p){presets=p;initPresets();}).getPresetReports();
+  google.script.run.withSuccessHandler(function(p){presets=p;initPresets();refreshPresetsFromDB();}).getPresetReports();
   google.script.run.withSuccessHandler(function(p){productNames=p||[];}).getProductNames();
   // Override hardcoded data with real values from DB
   google.script.run.withSuccessHandler(function(u){if(u&&u.length)users=u.map(function(r){return {id:r.id,name:r.name,active:r.active};});}).getUsersFromDB();
@@ -211,6 +211,31 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 
 // ===== PRESETS =====
 var _activePresetId=null;
+
+function refreshPresetsFromDB(){
+  google.script.run.withSuccessHandler(function(list){
+    if(!list||!list.length)return;
+    // Merge: DB is source of truth for shared attributes; local defs keep
+    // any legacy helpers that the editor did not include.
+    var byId={};presets.forEach(function(p){byId[p.id]=p;});
+    list.forEach(function(p){
+      var base=byId[p.id]||{};
+      byId[p.id]=Object.assign({},base,{
+        id:p.id,name:p.name,icon:p.icon||base.icon||'',description:p.description||'',
+        enhanced:!!p.enhanced,funnelStages:p.funnelStages||base.funnelStages||null,
+        andConditions:p.andConditions&&p.andConditions.length?p.andConditions:(base.andConditions||[]),
+        orConditions:p.orConditions&&p.orConditions.length?p.orConditions:(base.orConditions||[]),
+        sheetFilters:p.sheetFilters||base.sheetFilters||null,
+        columns:p.columns||base.columns||null,
+        filters:p.filters||base.filters||[],
+        isBuiltin:!!p.isBuiltin
+      });
+    });
+    presets=Object.keys(byId).map(function(id){return byId[id];})
+      .sort(function(a,b){return (b.isBuiltin?1:0)-(a.isBuiltin?1:0)||a.name.localeCompare(b.name);});
+    initPresets();
+  }).listCustomPresets();
+}
 function initPresets(){
   var wrap=document.getElementById('preset-cards');
   if(!wrap)return;
