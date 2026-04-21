@@ -236,26 +236,39 @@ function refreshPresetsFromDB(){
     initPresets();
   }).listCustomPresets();
 }
-function initPresets(){
-  var wrap=document.getElementById('preset-cards');
-  if(!wrap)return;
+function initPresets(){renderPresetList();}
+
+function presetInitials(p){return p.icon||p.name.split(/\s+/).map(function(w){return w[0]||'';}).join('').substring(0,2).toUpperCase();}
+
+function renderPresetList(){
+  var wrap=document.getElementById('preset-list');if(!wrap)return;
+  var q=((document.getElementById('preset-search')||{}).value||'').toLowerCase().trim();
   wrap.innerHTML='';
-  var clearBtn=document.createElement('div');
-  clearBtn.className='preset-card clear';clearBtn.innerHTML='<div><div class="preset-name">Без шаблону</div><div class="preset-desc">Ручні фільтри</div></div>';
-  clearBtn.onclick=function(){applyPreset(null);};
-  wrap.appendChild(clearBtn);
-  presets.forEach(function(p){
-    var card=document.createElement('div');card.className='preset-card';card.dataset.id=p.id;
-    var initials=p.icon||p.name.split(/\s+/).map(function(w){return w[0]||'';}).join('').substring(0,2).toUpperCase();
-    card.innerHTML='<div class="preset-icon">'+esc(initials)+'</div><div><div class="preset-name">'+esc(p.name)+'</div><div class="preset-desc">'+esc(p.description||'Шаблон звіту')+'</div></div>';
-    card.onclick=function(){applyPreset(p.id);};
-    wrap.appendChild(card);
+  var clear=document.createElement('div');
+  clear.className='preset-item clear-item'+(_activePresetId?'':' active');
+  clear.innerHTML='<div class="preset-icon">—</div><div class="preset-meta"><div class="preset-name">Без шаблону</div><div class="preset-desc">Ручні фільтри</div></div>';
+  clear.onclick=function(){applyPreset(null);};
+  wrap.appendChild(clear);
+  var filtered=presets.filter(function(p){return !q||(p.name+' '+(p.description||'')).toLowerCase().indexOf(q)>=0;});
+  if(!filtered.length){var e=document.createElement('div');e.className='preset-empty';e.textContent=q?'Нічого не знайдено':'Немає збережених звітів';wrap.appendChild(e);return;}
+  filtered.forEach(function(p){
+    var item=document.createElement('div');item.className='preset-item'+(p.id===_activePresetId?' active':'');
+    var actions='';
+    if(!p.isBuiltin||p.id==='commercial_proposals'||p.id==='project_starts'||p.id==='tenders'){
+      actions+='<button title="Редагувати" onclick="event.stopPropagation();openPresetEditor(\''+p.id+'\')"><span class="edit-icon"></span></button>';
+    }
+    if(!p.isBuiltin){
+      actions+='<button title="Видалити" onclick="event.stopPropagation();deletePresetConfirm(\''+p.id+'\')"><span class="trash-icon"></span></button>';
+    }
+    item.innerHTML='<div class="preset-icon">'+esc(presetInitials(p))+'</div><div class="preset-meta"><div class="preset-name">'+esc(p.name)+'</div><div class="preset-desc">'+esc(p.description||'Шаблон звіту')+'</div></div><div class="preset-actions">'+actions+'</div>';
+    item.onclick=function(){applyPreset(p.id);};
+    wrap.appendChild(item);
   });
 }
 
 function applyPreset(id){
   _activePresetId=id;
-  document.querySelectorAll('.preset-card').forEach(function(c){c.classList.toggle('active',c.dataset.id===id);});
+  renderPresetList();
   if(!id){document.getElementById('filter-rows').innerHTML='';window._presetOrConditions=[];window._presetColumns=null;window._presetSheetFilters=null;addFilterRow();return;}
   var pr=presets.find(function(p){return p.id===id;});if(!pr)return;
   document.getElementById('filter-rows').innerHTML='';
@@ -276,6 +289,9 @@ function applyPreset(id){
   if(pr.filters)pr.filters.forEach(function(f){addFilterRowWithData(f);});
 }
 function getActivePresetId(){return _activePresetId;}
+
+function openPresetEditor(id){/* wired in next commit */ alert('Редактор пресетів: наступний коміт');}
+function deletePresetConfirm(id){/* wired in next commit */ alert('Видалення: наступний коміт');}
 
 // ===== SEARCHABLE SELECT =====
 // Лёгкий dropdown с поиском, группами и экранированием.
