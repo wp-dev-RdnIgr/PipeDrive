@@ -205,6 +205,17 @@ header h1{font-size:22px;font-weight:700;color:var(--gray-900);letter-spacing:-.
 .card.kpi-forecast::before{background:var(--orange)}
 .card .num{font-size:26px;font-weight:700;color:var(--gray-900);letter-spacing:-.02em;line-height:1.15;font-variant-numeric:tabular-nums}
 .card .lbl{font-size:11px;color:var(--gray-500);margin-top:6px;text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+.card .num-multi{display:flex;flex-direction:column;gap:2px;font-variant-numeric:tabular-nums}
+.card .num-multi .curr-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.card .num-multi .curr-amt{font-size:16px;font-weight:700;color:var(--gray-900);letter-spacing:-.01em;line-height:1.25}
+.card .num-multi .curr-sym{font-size:12px;font-weight:600;color:var(--gray-500)}
+.card .num-multi .curr-empty{font-size:26px;font-weight:700;color:var(--gray-300)}
+.card.won .num-multi .curr-amt{color:var(--success)}
+.card.lost .num-multi .curr-amt{color:var(--danger)}
+.card.open .num-multi .curr-amt{color:var(--primary)}
+.card.kpi-pipeline .num-multi .curr-amt{color:var(--purple)}
+.card.kpi-avg .num-multi .curr-amt{color:var(--teal)}
+.card.kpi-forecast .num-multi .curr-amt{color:var(--orange)}
 .card.won .num{color:var(--success)}.card.lost .num{color:var(--danger)}.card.open .num{color:var(--primary)}
 .card.kpi-pipeline .num{color:var(--purple)}.card.kpi-avg .num{color:var(--teal)}.card.kpi-forecast .num{color:var(--orange)}
 
