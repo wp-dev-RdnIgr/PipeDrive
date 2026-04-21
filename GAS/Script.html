@@ -870,19 +870,28 @@ function renderEnhancedCharts(deals,totals,preset){
 }
 
 function renderKpiExtra(deals,t){
-  var pipelineSum=0,wonCount=0,wonSum=0,weightedForecast=0;
+  var pipelineSums={},avgSums={},avgCounts={},forecastSums={};
   deals.forEach(function(d){
-    var v=parseFloat(d.value)||0;
-    if(d.status==='open'){pipelineSum+=v;weightedForecast+=v*((parseFloat(d.probability)||0)/100);}
-    if(d.status==='won'){wonCount++;wonSum+=v;}
+    var v=parseFloat(d.value)||0;if(!v)return;
+    var c=d.currency||'UAH';
+    if(d.status==='open'){
+      pipelineSums[c]=(pipelineSums[c]||0)+v;
+      forecastSums[c]=(forecastSums[c]||0)+v*((parseFloat(d.probability)||0)/100);
+    }
+    if(d.status==='won'){
+      avgSums[c]=(avgSums[c]||0)+v;
+      avgCounts[c]=(avgCounts[c]||0)+1;
+    }
   });
-  var avgCheck=wonCount>0?Math.round(wonSum/wonCount):0;
+  var avgPerCurrency={};
+  Object.keys(avgSums).forEach(function(k){avgPerCurrency[k]=Math.round(avgSums[k]/avgCounts[k]);});
+  Object.keys(forecastSums).forEach(function(k){forecastSums[k]=Math.round(forecastSums[k]);});
   var el=document.getElementById('kpi-extra-cards');
   el.innerHTML=
-    '<div class="card kpi-pipeline"><div class="num">'+formatMoney(pipelineSum)+'</div><div class="lbl">Сума в pipeline</div></div>'+
-    '<div class="card kpi-avg"><div class="num">'+formatMoney(avgCheck)+'</div><div class="lbl">Середній чек (виграні)</div></div>'+
-    '<div class="card kpi-forecast"><div class="num">'+formatMoney(Math.round(weightedForecast))+'</div><div class="lbl">Прогноз (probability × pipeline)</div></div>';
-  el.style.display='flex';
+    '<div class="card kpi-pipeline">'+renderSumCard(pipelineSums)+'<div class="lbl">Сума в pipeline</div></div>'+
+    '<div class="card kpi-avg">'+renderSumCard(avgPerCurrency)+'<div class="lbl">Середній чек (виграні)</div></div>'+
+    '<div class="card kpi-forecast">'+renderSumCard(forecastSums)+'<div class="lbl">Прогноз (probability × pipeline)</div></div>';
+  el.style.display='grid';
 }
 
 function renderFunnel(deals,preset){
@@ -1064,13 +1073,16 @@ function heatColor(v,max){
 }
 
 function renderSummary(t){
+  var deals=(lastData&&lastData.deals)||[];
+  var wonSums=sumByCurrency(deals,function(d){return d.status==='won';});
+  var openSums=sumByCurrency(deals,function(d){return d.status==='open';});
   document.getElementById('summary-cards').innerHTML=
     '<div class="card"><div class="num">'+t.total+'</div><div class="lbl">Всього угод</div></div>'+
     '<div class="card won"><div class="num">'+t.won+' ('+t.conversion_rate+'%)</div><div class="lbl">Виграно</div></div>'+
     '<div class="card lost"><div class="num">'+t.lost+'</div><div class="lbl">Програно</div></div>'+
     '<div class="card open"><div class="num">'+t.open+'</div><div class="lbl">Відкриті</div></div>'+
-    '<div class="card"><div class="num">'+formatMoney(t.won_value)+'</div><div class="lbl">Сума виграних</div></div>'+
-    '<div class="card"><div class="num">'+formatMoney(t.open_value)+'</div><div class="lbl">Сума відкритих</div></div>';
+    '<div class="card">'+renderSumCard(wonSums)+'<div class="lbl">Сума виграних</div></div>'+
+    '<div class="card">'+renderSumCard(openSums)+'<div class="lbl">Сума відкритих</div></div>';
 }
 
 function renderCharts(ch){
@@ -1153,6 +1165,25 @@ function gotoPage(n){if(!lastData||!lastData.deals)return;var pages=Math.max(1,M
 var _cellData={},_cellId=0;
 var CURRENCY_SYM={UAH:'₴',USD:'$',EUR:'€',KZT:'₸',HRK:'kn',PLN:'zł',GBP:'£'};
 function currencySymbol(code){if(!code)return '₴';return CURRENCY_SYM[code]||code;}
+function sumByCurrency(deals,predicate){
+  var sums={};
+  (deals||[]).forEach(function(d){
+    if(predicate&&!predicate(d))return;
+    var v=parseFloat(d.value)||0;if(!v)return;
+    var c=d.currency||'UAH';sums[c]=(sums[c]||0)+v;
+  });
+  return sums;
+}
+function renderSumCard(sums){
+  var keys=Object.keys(sums).sort(function(a,b){return sums[b]-sums[a];});
+  if(!keys.length)return '<div class="num-multi"><span class="curr-empty">—</span></div>';
+  if(keys.length===1){
+    return '<div class="num">'+formatMoney(sums[keys[0]])+'&nbsp;'+esc(currencySymbol(keys[0]))+'</div>';
+  }
+  return '<div class="num-multi">'+keys.map(function(k){
+    return '<div class="curr-row"><span class="curr-amt">'+formatMoney(sums[k])+'</span><span class="curr-sym">'+esc(currencySymbol(k))+'</span></div>';
+  }).join('')+'</div>';
+}
 function escAttr(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function lookupValue(fieldId,val){
   if(val===null||val===undefined||val==='')return '';
