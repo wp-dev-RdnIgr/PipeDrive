@@ -116,6 +116,19 @@
     </div>
   </div>
 
+  <!-- Unsaved-changes confirmation modal -->
+  <div id="leave-confirm-modal" class="modal" style="display:none">
+    <div class="modal-content" style="max-width:440px;text-align:left">
+      <h2 style="text-align:center;margin-bottom:8px">Незбережені зміни</h2>
+      <p style="color:var(--gray-600);font-size:13px;margin-bottom:16px;text-align:center">У звіті є незбережені зміни. Що робити?</p>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="ghost" onclick="leaveConfirm('cancel')">Скасувати</button>
+        <button class="ghost" onclick="leaveConfirm('discard')">Відкинути зміни</button>
+        <button class="primary" onclick="leaveConfirm('save')">Зберегти та піти</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Preset editor modal -->
   <div id="preset-editor-modal" class="modal" style="display:none">
     <div class="modal-content" style="max-width:520px;text-align:left">

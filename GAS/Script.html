@@ -1,10 +1,40 @@
 <script>
 function switchTab(name){
+  if(name==='ai'&&isDirty()){confirmLeave(function(){switchTab(name);});return;}
   document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===name);});
   document.getElementById('view-report').style.display=name==='report'?'block':'none';
   document.getElementById('view-ai').style.display=name==='ai'?'block':'none';
   if(name==='ai')refreshAISetupBanner();
 }
+
+// ===== LEAVE CONFIRMATION =====
+var _leaveAfter=null;
+function confirmLeave(afterFn){
+  _leaveAfter=afterFn;
+  document.getElementById('leave-confirm-modal').style.display='flex';
+}
+function leaveConfirm(action){
+  var modal=document.getElementById('leave-confirm-modal');modal.style.display='none';
+  if(action==='cancel'){_leaveAfter=null;return;}
+  if(action==='discard'){_presetSnapshot=null;refreshDirtyUI();if(_leaveAfter){var fn=_leaveAfter;_leaveAfter=null;fn();}return;}
+  if(action==='save'){
+    if(!_activePresetId){
+      // No preset to save to — open the editor instead
+      _leaveAfter=null;openPresetEditor(null);return;
+    }
+    var pending=_leaveAfter;_leaveAfter=null;
+    var p=presets.find(function(x){return x.id===_activePresetId;});if(!p){if(pending)pending();return;}
+    var payload={id:p.id,name:p.name,icon:p.icon||'',description:p.description||'',filters:collectConditionsSafe(),enhanced:!!p.enhanced,funnelStages:p.funnelStages||null,columns:p.columns||null};
+    google.script.run.withSuccessHandler(function(r){
+      if(r&&r.error){showError(r.error);return;}
+      snapshotFilters();refreshPresetsFromDB();
+      if(pending)pending();
+    }).saveCustomPreset(payload);
+  }
+}
+window.addEventListener('beforeunload',function(ev){
+  if(isDirty()){ev.preventDefault();ev.returnValue='';return '';}
+});
 
 // ===== AI KEY SETUP =====
 function refreshAISetupBanner(){
@@ -267,6 +297,7 @@ function renderPresetList(){
 }
 
 function applyPreset(id){
+  if(isDirty()){confirmLeave(function(){applyPreset(id);});return;}
   _activePresetId=id;
   renderPresetList();
   if(!id){document.getElementById('filter-rows').innerHTML='';window._presetOrConditions=[];window._presetColumns=null;window._presetSheetFilters=null;addFilterRow();_presetSnapshot=null;refreshDirtyUI();return;}
