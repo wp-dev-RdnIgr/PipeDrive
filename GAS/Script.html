@@ -1,10 +1,11 @@
 <script>
-function switchTab(name){
+function switchTab(name,fromRoute){
   if(name==='ai'&&isDirty()){confirmLeave(function(){switchTab(name);});return;}
   document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===name);});
   document.getElementById('view-report').style.display=name==='report'?'block':'none';
   document.getElementById('view-ai').style.display=name==='ai'?'block':'none';
   if(name==='ai')refreshAISetupBanner();
+  if(!fromRoute)setHash(name==='ai'?'ai':(_activePresetId?'report/'+_activePresetId:'report'));
 }
 
 // ===== LEAVE CONFIRMATION =====
@@ -202,7 +203,7 @@ document.addEventListener('DOMContentLoaded',function(){
   google.script.run.withSuccessHandler(function(u){users=u;}).getUsersConfig();
   google.script.run.withSuccessHandler(function(s){stages=s;}).getAllStages();
   google.script.run.withSuccessHandler(function(o){opLabels=o;}).getOperatorsLabels();
-  google.script.run.withSuccessHandler(function(p){presets=p;initPresets();refreshPresetsFromDB();}).getPresetReports();
+  google.script.run.withSuccessHandler(function(p){presets=p;initPresets();refreshPresetsFromDB();setTimeout(routeFromHash,200);}).getPresetReports();
   google.script.run.withSuccessHandler(function(p){productNames=p||[];}).getProductNames();
   // Override hardcoded data with real values from DB
   google.script.run.withSuccessHandler(function(u){if(u&&u.length)users=u.map(function(r){return {id:r.id,name:r.name,active:r.active};});}).getUsersFromDB();
@@ -328,6 +329,10 @@ function renderPresetList(){
 
 function applyPreset(id){
   if(isDirty()){confirmLeave(function(){applyPreset(id);});return;}
+  setHash(id?'report/'+id:'report');
+  _applyPresetInternal(id);
+}
+function _applyPresetInternal(id){
   // Persist the outgoing preset's UI state before rebuilding the panel.
   saveCurrentState();
   _activePresetId=id;
@@ -362,6 +367,37 @@ function applyPreset(id){
 }
 function getActivePresetId(){return _activePresetId;}
 function updateReportHeader(){/* hooked up in commit 3 */}
+
+// ===== HASH ROUTING =====
+// #/report/{id} selects a preset; #/report/new opens a fresh draft;
+// #/ai switches to the AI tab. Back/forward navigation works natively.
+var _routerSuppressPush=false;
+function parseHash(){
+  var h=(location.hash||'').replace(/^#\/?/,'');
+  if(!h||h==='report')return {view:'report',id:''};
+  var parts=h.split('/');
+  if(parts[0]==='report')return {view:'report',id:parts[1]||''};
+  if(parts[0]==='ai')return {view:'ai'};
+  return {view:'report',id:''};
+}
+function setHash(path){
+  if(_routerSuppressPush)return;
+  if(location.hash===('#/'+path))return;
+  _routerSuppressPush=true;location.hash='#/'+path;_routerSuppressPush=false;
+}
+function routeFromHash(){
+  var r=parseHash();
+  if(r.view==='ai'){switchTab('ai',true);return;}
+  switchTab('report',true);
+  if(r.id===_activePresetId||(!r.id&&!_activePresetId))return;
+  if(!r.id){_applyPresetInternal(null);return;}
+  // Wait until presets are loaded before switching to a specific id.
+  if(!presets.find(function(p){return p.id===r.id;})){
+    setTimeout(routeFromHash,150);return;
+  }
+  _applyPresetInternal(r.id);
+}
+window.addEventListener('hashchange',routeFromHash);
 
 // ===== DIRTY STATE TRACKING =====
 var _presetSnapshot=null;
