@@ -1121,7 +1121,12 @@ function getActiveCols(){return window._presetColumns||TABLE_COLS;}
 var PAGE_SIZE=50,currentPage=1;
 function renderTable(deals){
   var cols=getActiveCols();
-  document.getElementById('deals-thead').innerHTML='<tr>'+cols.map(function(c){return '<th onclick="sortTable(\''+c.key+'\')">'+c.label+'<span class="sort-icon" id="si-'+c.key+'"></span></th>';}).join('')+'</tr>';
+  var table=document.getElementById('deals-table');
+  var existing=table.querySelector('colgroup');if(existing)existing.remove();
+  var cg=document.createElement('colgroup');
+  cols.forEach(function(c){var col=document.createElement('col');col.style.width=(c.width||140)+'px';cg.appendChild(col);});
+  table.insertBefore(cg,table.firstChild);
+  document.getElementById('deals-thead').innerHTML='<tr>'+cols.map(function(c){return '<th onclick="sortTable(\''+c.key+'\')">'+esc(c.label)+'<span class="sort-icon" id="si-'+c.key+'"></span></th>';}).join('')+'</tr>';
   var badge=document.getElementById('table-count');if(badge)badge.textContent=(deals||[]).length.toLocaleString('uk-UA')+' угод';
   currentPage=1;
   renderPage(deals);
@@ -1195,37 +1200,36 @@ function lookupValue(fieldId,val){
 }
 function renderCell(c,d){
   var v=d[c.key];
-  var style=c.width?' style="max-width:'+c.width+'px"':'';
   if(c.deal_link){
     var title=String(v||'(без назви)');
-    return '<td'+style+' class="cell-trunc"><a href="https://webpromo.pipedrive.com/deal/'+d.id+'" target="_blank" title="'+escAttr(title)+'">'+esc(title)+'</a></td>';
+    return '<td class="cell-trunc"><a href="https://webpromo.pipedrive.com/deal/'+d.id+'" target="_blank" title="'+escAttr(title)+'">'+esc(title)+'</a></td>';
   }
   if(c.external_link){
-    if(!v)return '<td'+style+'><span class="cell-empty">—</span></td>';
-    return '<td'+style+' class="cell-link"><a href="'+escAttr(v)+'" target="_blank" title="'+escAttr(v)+'">Відкрити</a></td>';
+    if(!v)return '<td><span class="cell-empty">—</span></td>';
+    return '<td class="cell-link"><a href="'+escAttr(v)+'" target="_blank" title="'+escAttr(v)+'">Відкрити</a></td>';
   }
   if(c.expandable){
-    if(v===null||v===undefined||v==='')return '<td'+style+'><span class="cell-empty">—</span></td>';
+    if(v===null||v===undefined||v==='')return '<td><span class="cell-empty">—</span></td>';
     var text=String(v);var short=text.length>80?text.substring(0,80)+'…':text;
     var id='c_'+(_cellId++);_cellData[id]=text;_cellData[id+'_t']=c.label;
-    return '<td'+style+' class="cell-expand"><div class="cell-preview" title="'+escAttr(text)+'">'+esc(short)+'</div>'+
+    return '<td class="cell-expand"><div class="cell-preview" title="'+escAttr(text)+'">'+esc(short)+'</div>'+
       (text.length>80?'<button class="cell-link-btn" onclick="showCellText(\''+id+'\')">Докладніше</button>':'')+'</td>';
   }
   if(c.money){
-    if(v===null||v===undefined||v==='')return '<td'+style+' class="cell-money">—</td>';
+    if(v===null||v===undefined||v==='')return '<td class="cell-money">—</td>';
     var sym=currencySymbol(d.currency);
-    return '<td'+style+' class="cell-money">'+formatMoney(v)+'&nbsp;'+esc(sym)+'</td>';
+    return '<td class="cell-money">'+formatMoney(v)+'&nbsp;'+esc(sym)+'</td>';
   }
-  if(c.date)return '<td'+style+'>'+formatDate(v)+'</td>';
+  if(c.date)return '<td>'+formatDate(v)+'</td>';
   if(c.lookup){
     var label=lookupValue(c.lookup,v);
-    return '<td'+style+(c.truncate?' class="cell-trunc" title="'+escAttr(label)+'"':'')+'>'+esc(String(label))+'</td>';
+    return '<td'+(c.truncate?' class="cell-trunc" title="'+escAttr(label)+'"':'')+'>'+esc(String(label))+'</td>';
   }
   if(c.badge)return '<td><span class="status-badge status-'+v+'">'+statusLabel(v)+'</span></td>';
-  if(c.link&&v)return '<td'+style+' class="cell-link"><a href="'+escAttr(v)+'" target="_blank">Відкрити</a></td>';
+  if(c.link&&v)return '<td class="cell-link"><a href="'+escAttr(v)+'" target="_blank">Відкрити</a></td>';
   var txt=String(v==null?'':v);
-  if(!txt)return '<td'+style+'><span class="cell-empty">—</span></td>';
-  return '<td'+style+(c.truncate?' class="cell-trunc" title="'+escAttr(txt)+'"':'')+'>'+esc(txt)+'</td>';
+  if(!txt)return '<td><span class="cell-empty">—</span></td>';
+  return '<td'+(c.truncate?' class="cell-trunc" title="'+escAttr(txt)+'"':'')+'>'+esc(txt)+'</td>';
 }
 function showCellText(id){
   document.getElementById('cell-text-title').textContent=_cellData[id+'_t']||'Текст';
