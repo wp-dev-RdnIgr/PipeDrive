@@ -2,7 +2,7 @@
 function switchTab(name,fromRoute){
   if(name==='ai'&&isDirty()){confirmLeave(function(){switchTab(name);});return;}
   document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===name);});
-  document.getElementById('view-report').style.display=name==='report'?'block':'none';
+  document.getElementById('view-report').style.display=name==='report'?'grid':'none';
   document.getElementById('view-ai').style.display=name==='ai'?'block':'none';
   if(name==='ai')refreshAISetupBanner();
   if(!fromRoute)setHash(name==='ai'?'ai':(_activePresetId?'report/'+_activePresetId:'report'));
