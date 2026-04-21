@@ -239,6 +239,16 @@ header h1{font-size:22px;font-weight:700;color:var(--gray-900);letter-spacing:-.
 #deals-table td{padding:12px 14px;border-bottom:1px solid var(--gray-100);color:var(--gray-800);font-variant-numeric:tabular-nums}
 #deals-table tbody tr{transition:background .1s ease}
 #deals-table tbody tr:hover{background:var(--gray-50)}
+#deals-table td.cell-trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#deals-table td.cell-trunc a{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+#deals-table td.cell-money{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--gray-800);font-weight:500}
+#deals-table td.cell-link{text-align:center}
+#deals-table td.cell-link a{font-weight:500;color:var(--primary)}
+#deals-table td.cell-expand{max-width:0}
+#deals-table td.cell-expand .cell-preview{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px;color:var(--gray-700)}
+#deals-table td.cell-expand .cell-link-btn{background:none;border:none;color:var(--primary);font-size:11px;cursor:pointer;padding:0;font-family:inherit;font-weight:500;text-decoration:underline}
+#deals-table td.cell-expand .cell-link-btn:hover{color:var(--primary-dark)}
+#deals-table .cell-empty{color:var(--gray-300)}
 .status-badge{display:inline-block;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .status-won{background:var(--success-light);color:#065f46}
 .status-lost{background:var(--danger-light);color:#991b1b}
