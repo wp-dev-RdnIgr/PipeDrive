@@ -141,7 +141,7 @@ function chartOpts(extra){var o=JSON.parse(JSON.stringify(CHART_BASE));Object.ke
 google.charts.load('current',{packages:['corechart','bar']});
 
 document.addEventListener('DOMContentLoaded',function(){
-  google.script.run.withSuccessHandler(function(f){fields=f;addFilterRow();}).getFieldsConfig();
+  google.script.run.withSuccessHandler(function(f){fields=f;addFilterRow();installFilterObserver();}).getFieldsConfig();
   google.script.run.withSuccessHandler(function(p){pipelines=p;}).getPipelinesConfig();
   google.script.run.withSuccessHandler(function(u){users=u;}).getUsersConfig();
   google.script.run.withSuccessHandler(function(s){stages=s;}).getAllStages();
@@ -269,7 +269,7 @@ function renderPresetList(){
 function applyPreset(id){
   _activePresetId=id;
   renderPresetList();
-  if(!id){document.getElementById('filter-rows').innerHTML='';window._presetOrConditions=[];window._presetColumns=null;window._presetSheetFilters=null;addFilterRow();return;}
+  if(!id){document.getElementById('filter-rows').innerHTML='';window._presetOrConditions=[];window._presetColumns=null;window._presetSheetFilters=null;addFilterRow();_presetSnapshot=null;refreshDirtyUI();return;}
   var pr=presets.find(function(p){return p.id===id;});if(!pr)return;
   document.getElementById('filter-rows').innerHTML='';
   window._presetOrConditions=pr.orConditions||[];
@@ -287,8 +287,49 @@ function applyPreset(id){
     });
   }
   if(pr.filters)pr.filters.forEach(function(f){addFilterRowWithData(f);});
+  setTimeout(snapshotFilters,50);
 }
 function getActivePresetId(){return _activePresetId;}
+
+// ===== DIRTY STATE TRACKING =====
+var _presetSnapshot=null;
+function snapshotFilters(){_presetSnapshot=JSON.stringify(collectConditionsSafe());refreshDirtyUI();}
+function isDirty(){
+  if(_presetSnapshot===null)return false;
+  var now=JSON.stringify(collectConditionsSafe());
+  return now!==_presetSnapshot;
+}
+function refreshDirtyUI(){
+  var saveBtn=document.getElementById('btn-save-preset');
+  var saveAsBtn=document.getElementById('btn-save-as');
+  var hasFilters=collectConditionsSafe().length>0;
+  if(saveBtn)saveBtn.style.display=(_activePresetId && isDirty())?'inline-flex':'none';
+  if(saveAsBtn)saveAsBtn.style.display=(!_activePresetId && hasFilters)?'inline-flex':'none';
+}
+function installFilterObserver(){
+  var root=document.getElementById('filter-rows');if(!root)return;
+  root.addEventListener('input',refreshDirtyUI);
+  root.addEventListener('change',refreshDirtyUI);
+  root.addEventListener('click',function(ev){setTimeout(refreshDirtyUI,30);});
+  new MutationObserver(refreshDirtyUI).observe(root,{childList:true,subtree:true,attributes:true});
+}
+
+function savePresetChanges(){
+  if(!_activePresetId)return;
+  var p=presets.find(function(x){return x.id===_activePresetId;});
+  if(!p)return;
+  var filters=collectConditionsSafe();
+  var payload={id:p.id,name:p.name,icon:p.icon||'',description:p.description||'',filters:filters,enhanced:!!p.enhanced,funnelStages:p.funnelStages||null,columns:p.columns||null};
+  var btn=document.getElementById('btn-save-preset');btn.disabled=true;btn.textContent='Збереження...';
+  google.script.run.withSuccessHandler(function(r){
+    btn.disabled=false;btn.textContent='Зберегти зміни';
+    if(r&&r.error){showError(r.error);return;}
+    snapshotFilters();
+    refreshPresetsFromDB();
+  }).withFailureHandler(function(e){
+    btn.disabled=false;btn.textContent='Зберегти зміни';showError(e.message||String(e));
+  }).saveCustomPreset(payload);
+}
 
 var _editingPresetId=null;
 function openPresetEditor(id){

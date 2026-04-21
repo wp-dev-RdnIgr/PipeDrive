@@ -45,6 +45,8 @@
       <div class="filter-actions">
         <button id="btn-add" onclick="addFilterRow()">+ Додати умову</button>
         <div class="right-actions">
+          <button id="btn-save-preset" class="ghost" style="display:none" onclick="savePresetChanges()">Зберегти зміни</button>
+          <button id="btn-save-as" class="ghost" style="display:none" onclick="openPresetEditor(null)">Зберегти як звіт</button>
           <select id="group-by">
             <option value="none">Без групування</option>
             <option value="owner">За власником</option>
