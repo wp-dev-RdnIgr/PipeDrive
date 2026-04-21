@@ -2,7 +2,7 @@
 function switchTab(name,fromRoute){
   if(name==='ai'&&isDirty()){confirmLeave(function(){switchTab(name);});return;}
   document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===name);});
-  document.getElementById('view-report').style.display=name==='report'?'block':'none';
+  document.getElementById('view-report').style.display=name==='report'?'grid':'none';
   document.getElementById('view-ai').style.display=name==='ai'?'block':'none';
   if(name==='ai')refreshAISetupBanner();
   if(!fromRoute)setHash(name==='ai'?'ai':(_activePresetId?'report/'+_activePresetId:'report'));
@@ -814,15 +814,9 @@ var FIELD_ID_TO_SQL={
 };
 
 function runReport(){
-  var selVal=getActivePresetId();
-  var pr=selVal?presets.find(function(p){return p.id===selVal;}):null;
-  if(pr&&pr.sheetFilters){
-    showLoading(true);hideError();document.getElementById('report-section').style.display='none';
-    var gb=document.getElementById('group-by').value;
-    google.script.run.withSuccessHandler(function(r){showLoading(false);if(r.error){showError(r.error);return;}lastData=r;renderReport(r);saveCurrentState();}).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildReportFromDB(pr.sheetFilters,gb);
-    return;
-  }
-  window._presetColumns=null;
+  // Always use UI conditions — the filter panel is the single source of
+  // truth. Preset-level sheetFilters are ignored so any user edit (add,
+  // remove, change) is reflected in the SQL that goes to the server.
   var c=collectConditions();if(!c)return;showLoading(true);hideError();
   document.getElementById('report-section').style.display='none';
   // Convert field_id conditions to SQL filters
@@ -969,21 +963,48 @@ function renderMonthlyTrend(deals){
   }));
 }
 
+var _chartFilters={convMgr:null,heatMgr:null};
+function uniqOwners(deals){
+  var set={};deals.forEach(function(d){var n=d.owner_name||'(не вказано)';set[n]=true;});
+  return Object.keys(set).sort();
+}
+function mountMgrFilter(containerId,allMgrs,selected,onChange){
+  var wrap=document.getElementById(containerId);if(!wrap)return;
+  wrap.innerHTML='';
+  var sel=buildSSel({
+    multi:true,placeholder:'Всі менеджери',
+    options:allMgrs.map(function(m){return {value:m,label:m};}),
+    value:selected.join(','),onChange:onChange
+  });
+  sel.classList.add('ssel-chart-filter');
+  wrap.appendChild(sel);
+}
+
 function renderConvByManager(deals){
   var box=document.getElementById('chart-conv-manager');
+  var allMgrs=uniqOwners(deals);
+  if(_chartFilters.convMgr===null)_chartFilters.convMgr=allMgrs.slice();
+  // Drop mgrs that no longer exist in the current dataset
+  _chartFilters.convMgr=_chartFilters.convMgr.filter(function(m){return allMgrs.indexOf(m)>=0;});
+  if(!_chartFilters.convMgr.length)_chartFilters.convMgr=allMgrs.slice();
+  var filtered=deals.filter(function(d){return _chartFilters.convMgr.indexOf(d.owner_name||'(не вказано)')>=0;});
   var byMgr={};
-  deals.forEach(function(d){
+  filtered.forEach(function(d){
     var n=d.owner_name||'(не вказано)';
     if(!byMgr[n])byMgr[n]={total:0,won:0,lost:0,open:0};
     byMgr[n].total++;byMgr[n][d.status]=(byMgr[n][d.status]||0)+1;
   });
   var rows=Object.keys(byMgr).map(function(k){var m=byMgr[k];m.name=k;m.winRate=m.total>0?Math.round(m.won/m.total*100):0;return m;}).sort(function(a,b){return b.total-a.total;});
-  if(!rows.length){box.style.display='none';return;}
+  if(!allMgrs.length){box.style.display='none';return;}
   var dt=new google.visualization.DataTable();
   dt.addColumn('string','Менеджер');dt.addColumn('number','Виграні');dt.addColumn('number','Програні');dt.addColumn('number','Відкриті');dt.addColumn({type:'string',role:'annotation'});
   rows.forEach(function(m){dt.addRow([m.name,m.won,m.lost,m.open,m.winRate+'%']);});
-  box.innerHTML='<div class="chart-title">Конверсія по менеджерах<span class="hint">win-rate % над стовпчиком</span></div><div id="chart-mgr-canvas" style="height:380px"></div>';
+  box.innerHTML='<div class="chart-header"><div class="chart-title">Конверсія по менеджерах<span class="hint">win-rate % над стовпчиком</span></div><div class="chart-filters" id="conv-mgr-filter"></div></div><div id="chart-mgr-canvas" style="height:380px"></div>';
   box.style.display='block';
+  mountMgrFilter('conv-mgr-filter',allMgrs,_chartFilters.convMgr,function(vals){
+    _chartFilters.convMgr=vals.length?vals:allMgrs.slice();
+    renderConvByManager(deals);
+  });
   new google.visualization.ColumnChart(document.getElementById('chart-mgr-canvas')).draw(dt,chartOpts({
     isStacked:true,colors:[CHART_COLORS.success,CHART_COLORS.danger,CHART_COLORS.primary],
     bar:{groupWidth:'62%'},
@@ -997,16 +1018,21 @@ function renderHeatmapStageManager(deals,preset){
   var box=document.getElementById('chart-heatmap');
   var stages=(preset&&preset.funnelStages)||[];
   if(!stages.length){box.style.display='none';return;}
+  var allMgrs=uniqOwners(deals);
+  if(_chartFilters.heatMgr===null)_chartFilters.heatMgr=allMgrs.slice();
+  _chartFilters.heatMgr=_chartFilters.heatMgr.filter(function(m){return allMgrs.indexOf(m)>=0;});
+  if(!_chartFilters.heatMgr.length)_chartFilters.heatMgr=allMgrs.slice();
+  var filtered=deals.filter(function(d){return _chartFilters.heatMgr.indexOf(d.owner_name||'(не вказано)')>=0;});
   var mgrs={};
-  deals.forEach(function(d){var n=d.owner_name||'(не вказано)';if(!mgrs[n])mgrs[n]={};mgrs[n][d.stage_id]=(mgrs[n][d.stage_id]||0)+1;});
+  filtered.forEach(function(d){var n=d.owner_name||'(не вказано)';if(!mgrs[n])mgrs[n]={};mgrs[n][d.stage_id]=(mgrs[n][d.stage_id]||0)+1;});
   var mgrList=Object.keys(mgrs).sort(function(a,b){
     var ta=0,tb=0;stages.forEach(function(s){ta+=mgrs[a][s.id]||0;tb+=mgrs[b][s.id]||0;});
     return tb-ta;
   });
-  if(!mgrList.length){box.style.display='none';return;}
   var max=0;mgrList.forEach(function(m){stages.forEach(function(s){var v=mgrs[m][s.id]||0;if(v>max)max=v;});});
-  var html='<div class="chart-title">Менеджер × Етап<span class="hint">де кладовища угод</span></div><div style="overflow-x:auto"><table class="heatmap-table"><thead><tr><th>Менеджер</th>';
+  var html='<div class="chart-header"><div class="chart-title">Менеджер × Етап<span class="hint">де кладовища угод</span></div><div class="chart-filters" id="heat-mgr-filter"></div></div><div style="overflow-x:auto"><table class="heatmap-table"><thead><tr><th>Менеджер</th>';
   stages.forEach(function(s){html+='<th>'+esc(s.name)+'</th>';});html+='<th>Всього</th></tr></thead><tbody>';
+  if(!mgrList.length){html+='<tr><td colspan="'+(stages.length+2)+'" style="padding:20px;text-align:center;color:var(--gray-400)">Немає даних для вибраних менеджерів</td></tr>';}
   mgrList.forEach(function(m){
     html+='<tr><td class="mgr">'+esc(m)+'</td>';var total=0;
     stages.forEach(function(s){
@@ -1018,6 +1044,10 @@ function renderHeatmapStageManager(deals,preset){
   });
   html+='</tbody></table></div><div class="heatmap-legend">Чим темніша клітинка — тим більше КП у менеджера на цьому етапі</div>';
   box.innerHTML=html;box.style.display='block';
+  mountMgrFilter('heat-mgr-filter',allMgrs,_chartFilters.heatMgr,function(vals){
+    _chartFilters.heatMgr=vals.length?vals:allMgrs.slice();
+    renderHeatmapStageManager(deals,preset);
+  });
 }
 
 function heatColor(v,max){
