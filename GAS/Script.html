@@ -26,8 +26,9 @@ function leaveConfirm(action){
     var p=presets.find(function(x){return x.id===_activePresetId;});if(!p){if(pending)pending();return;}
     var payload={id:p.id,name:p.name,icon:p.icon||'',description:p.description||'',filters:collectConditionsSafe(),enhanced:!!p.enhanced,funnelStages:p.funnelStages||null,columns:p.columns||null};
     google.script.run.withSuccessHandler(function(r){
-      if(r&&r.error){showError(r.error);return;}
+      if(r&&r.error){toast(r.error,'error');return;}
       snapshotFilters();refreshPresetsFromDB();
+      toast('Звіт збережено','success');
       if(pending)pending();
     }).saveCustomPreset(payload);
   }
@@ -250,12 +251,16 @@ function refreshPresetsFromDB(){
     var byId={};presets.forEach(function(p){byId[p.id]=p;});
     list.forEach(function(p){
       var base=byId[p.id]||{};
+      var unified=!!p.unified;
       byId[p.id]=Object.assign({},base,{
         id:p.id,name:p.name,icon:p.icon||base.icon||'',description:p.description||'',
-        enhanced:!!p.enhanced,funnelStages:p.funnelStages||base.funnelStages||null,
-        andConditions:p.andConditions&&p.andConditions.length?p.andConditions:(base.andConditions||[]),
-        orConditions:p.orConditions&&p.orConditions.length?p.orConditions:(base.orConditions||[]),
-        sheetFilters:p.sheetFilters||base.sheetFilters||null,
+        enhanced:!!p.enhanced,unified:unified,
+        funnelStages:p.funnelStages||base.funnelStages||null,
+        // Once a preset is unified (saved via UI), ignore legacy fields
+        // even if the hardcoded Config.gs copy still carries them.
+        andConditions:unified?[]:(p.andConditions&&p.andConditions.length?p.andConditions:(base.andConditions||[])),
+        orConditions:unified?[]:(p.orConditions&&p.orConditions.length?p.orConditions:(base.orConditions||[])),
+        sheetFilters:unified?null:(p.sheetFilters||base.sheetFilters||null),
         columns:p.columns||base.columns||null,
         filters:p.filters||base.filters||[],
         isBuiltin:!!p.isBuiltin
@@ -306,18 +311,22 @@ function applyPreset(id){
   window._presetOrConditions=pr.orConditions||[];
   window._presetColumns=pr.columns||null;
   window._presetSheetFilters=pr.sheetFilters||null;
-  if(pr.andConditions)pr.andConditions.forEach(function(f){addFilterRowWithData(f);});
-  // Group repeating orConditions on the same field into one multi-select row (IN)
-  if(pr.orConditions&&pr.orConditions.length){
-    var byField={};
-    pr.orConditions.forEach(function(f){if(!byField[f.field_id])byField[f.field_id]=[];byField[f.field_id].push(f.value);});
-    Object.keys(byField).forEach(function(fid){
-      var vals=byField[fid];
-      if(vals.length>1)addFilterRowWithData({field_id:parseInt(fid),operator:'IN',value:vals});
-      else addFilterRowWithData({field_id:parseInt(fid),operator:'=',value:vals[0]});
-    });
+  // Unified presets (saved via UI) rely on `filters` only. Legacy ones
+  // still use andConditions + orConditions from the hardcoded Config.
+  if(pr.unified||(pr.filters&&pr.filters.length)){
+    (pr.filters||[]).forEach(function(f){addFilterRowWithData(f);});
+  }else{
+    if(pr.andConditions)pr.andConditions.forEach(function(f){addFilterRowWithData(f);});
+    if(pr.orConditions&&pr.orConditions.length){
+      var byField={};
+      pr.orConditions.forEach(function(f){if(!byField[f.field_id])byField[f.field_id]=[];byField[f.field_id].push(f.value);});
+      Object.keys(byField).forEach(function(fid){
+        var vals=byField[fid];
+        if(vals.length>1)addFilterRowWithData({field_id:parseInt(fid),operator:'IN',value:vals});
+        else addFilterRowWithData({field_id:parseInt(fid),operator:'=',value:vals[0]});
+      });
+    }
   }
-  if(pr.filters)pr.filters.forEach(function(f){addFilterRowWithData(f);});
   setTimeout(snapshotFilters,50);
 }
 function getActivePresetId(){return _activePresetId;}
@@ -354,11 +363,12 @@ function savePresetChanges(){
   var btn=document.getElementById('btn-save-preset');btn.disabled=true;btn.textContent='Збереження...';
   google.script.run.withSuccessHandler(function(r){
     btn.disabled=false;btn.textContent='Зберегти зміни';
-    if(r&&r.error){showError(r.error);return;}
+    if(r&&r.error){toast(r.error,'error');return;}
     snapshotFilters();
     refreshPresetsFromDB();
+    toast('Звіт збережено','success');
   }).withFailureHandler(function(e){
-    btn.disabled=false;btn.textContent='Зберегти зміни';showError(e.message||String(e));
+    btn.disabled=false;btn.textContent='Зберегти зміни';toast(e.message||String(e),'error');
   }).saveCustomPreset(payload);
 }
 
@@ -408,6 +418,7 @@ function savePresetFromEditor(){
     document.getElementById('preset-editor-modal').style.display='none';
     refreshPresetsFromDB();
     _activePresetId=id;setTimeout(renderPresetList,300);
+    toast(_editingPresetId?'Звіт оновлено':'Звіт створено','success');
   }).withFailureHandler(function(e){
     btn.disabled=false;btn.textContent='Зберегти';err.textContent=e.message||String(e);
   }).saveCustomPreset(payload);
@@ -1023,6 +1034,15 @@ function formatMoney(v){if(v===null||v===undefined||v==='')return'—';return ne
 function formatDate(s){if(!s)return'';var d=new Date(s);return d.toLocaleDateString('uk-UA');}
 function statusLabel(s){return s==='won'?'Виграна':s==='lost'?'Програна':s==='open'?'Відкрита':s;}
 function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+var _toastTimer=null;
+function toast(msg,kind){
+  var el=document.getElementById('toast');if(!el)return;
+  var icon=kind==='success'?'<span class="toast-check"></span>':'';
+  el.className='';el.innerHTML=icon+'<span>'+esc(msg)+'</span>';
+  el.classList.add(kind||'success','show');
+  clearTimeout(_toastTimer);_toastTimer=setTimeout(function(){el.classList.remove('show');setTimeout(function(){el.style.display='none';},200);},2000);
+  el.style.display='flex';
+}
 function showLoading(v){document.getElementById('loading').style.display=v?'block':'none';}
 function showError(m){document.getElementById('error-bar').style.display='block';document.getElementById('error-bar').textContent=m;}
 function hideError(){document.getElementById('error-bar').style.display='none';}

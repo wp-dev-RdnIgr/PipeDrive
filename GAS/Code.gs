@@ -326,6 +326,7 @@ function listCustomPresets() {
         id: r.id, name: r.name, icon: r.icon || '',
         description: r.description || '', isBuiltin: !!r.is_builtin,
         enhanced: !!cfg.enhanced,
+        unified: !!cfg.unified,
         funnelStages: cfg.funnelStages || null,
         andConditions: cfg.andConditions || [],
         orConditions: cfg.orConditions || [],
@@ -348,7 +349,8 @@ function saveCustomPreset(preset) {
       enhanced: !!preset.enhanced,
       filters: preset.filters || [],
       funnelStages: preset.funnelStages || null,
-      columns: preset.columns || null
+      columns: preset.columns || null,
+      unified: true
     };
     var configJson = sqlEscape(JSON.stringify(config));
     var sql = "INSERT INTO pipedrive.report_presets (id, name, icon, description, config, is_builtin) VALUES ('" + id + "', '" + name + "', '" + icon + "', '" + desc + "', '" + configJson + "'::jsonb, false) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, icon = EXCLUDED.icon, description = EXCLUDED.description, config = EXCLUDED.config, updated_at = NOW() WHERE pipedrive.report_presets.is_builtin = false OR pipedrive.report_presets.id = EXCLUDED.id";
