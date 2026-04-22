@@ -212,30 +212,40 @@ function buildReportFromDB(filters, groupBy) {
   try {
     console.log('FILTERS:', JSON.stringify(filters));
     var where = [];
+    // "Ефективне" ім'я товару: deals.product_name або ім'я першого рядка
+    // з deal_products. Використовуємо як у фільтрах (product_name IS NOT
+    // NULL має спрацьовувати, якщо товар є в deal_products), так і в
+    // виводі (чарт "Конверсія по послугах" має бачити реальні послуги,
+    // а не "(без товару)" для всіх угод).
+    var PRODUCT_EFF = "COALESCE(NULLIF(d.product_name,''), (SELECT dp.name FROM pipedrive.deal_products dp WHERE dp.deal_id=d.id ORDER BY dp.id LIMIT 1))";
     if (filters && filters.length) {
       filters.forEach(function(f) {
-        // Legacy alias: some clients still send 'deal_product'; both map to
-        // the denormalized deals.product_name column.
         var field = (f.field === 'deal_product') ? 'product_name' : f.field;
-        if (f.op === '=') where.push('d.' + field + " = '" + String(f.value).replace(/'/g,"''") + "'");
-        else if (f.op === '!=') where.push('d.' + field + " != '" + String(f.value).replace(/'/g,"''") + "'");
-        else if (f.op === '>=') where.push('d.' + field + " >= '" + f.value + "'");
+        var col = field === 'product_name' ? PRODUCT_EFF : ('d.' + field);
+        if (f.op === '=') where.push(col + " = '" + String(f.value).replace(/'/g,"''") + "'");
+        else if (f.op === '!=') where.push(col + " != '" + String(f.value).replace(/'/g,"''") + "'");
+        else if (f.op === '>=') where.push(col + " >= '" + f.value + "'");
         else if (f.op === '<=') {
           // For date-only values on timestamp columns, include the whole day.
           var dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(String(f.value));
-          if (dateOnly) where.push('d.' + field + " < ('" + f.value + "'::date + INTERVAL '1 day')");
-          else where.push('d.' + field + " <= '" + f.value + "'");
+          if (dateOnly) where.push(col + " < ('" + f.value + "'::date + INTERVAL '1 day')");
+          else where.push(col + " <= '" + f.value + "'");
         }
-        else if (f.op === 'in') where.push('d.' + field + " IN (" + f.value.join(',') + ")");
-        else if (f.op === 'contains') where.push('d.' + field + " ILIKE '%" + String(f.value).replace(/'/g,"''") + "%'");
-        else if (f.op === 'is null') where.push('d.' + field + " IS NULL");
-        else if (f.op === 'is not null') where.push('d.' + field + " IS NOT NULL");
+        else if (f.op === 'in') where.push(col + " IN (" + f.value.join(',') + ")");
+        else if (f.op === 'contains') where.push(col + " ILIKE '%" + String(f.value).replace(/'/g,"''") + "%'");
+        else if (f.op === 'is null') where.push(col + " IS NULL");
+        else if (f.op === 'is not null') where.push(col + " IS NOT NULL");
       });
     }
     var whereStr = where.length ? ' WHERE ' + where.join(' AND ') : '';
-    var sql = "SELECT d.*, s.name as stage_name, p.name as pipeline_name FROM pipedrive.deals d LEFT JOIN pipedrive.stages s ON d.stage_id=s.id LEFT JOIN pipedrive.pipelines p ON d.pipeline_id=p.id" + whereStr + " ORDER BY d.add_time DESC";
+    // _product_name_eff поверх d.* дозволяє клієнту переписати
+    // d.product_name на реальне ім'я, не перекручуючи інші колонки.
+    var sql = "SELECT d.*, s.name as stage_name, p.name as pipeline_name, " + PRODUCT_EFF + " AS _product_name_eff FROM pipedrive.deals d LEFT JOIN pipedrive.stages s ON d.stage_id=s.id LEFT JOIN pipedrive.pipelines p ON d.pipeline_id=p.id" + whereStr + " ORDER BY d.add_time DESC";
     console.log('SQL:', sql);
     var deals = dbQueryRows(sql);
+    // Overwrite denormalized product_name with the COALESCE'd value so the
+    // UI (charts + table grouping) and the filter see the same column.
+    deals.forEach(function(r){ if (r._product_name_eff) r.product_name = r._product_name_eff; delete r._product_name_eff; });
 
     var totals = {total:deals.length, won:0, lost:0, open:0, won_value:0, lost_value:0, open_value:0};
     deals.forEach(function(r) {
