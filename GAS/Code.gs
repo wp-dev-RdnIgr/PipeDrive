@@ -225,7 +225,20 @@ function buildReportFromDB(filters, groupBy) {
     if (filters && filters.length) {
       filters.forEach(function(f) {
         var field = (f.field === 'deal_product') ? 'product_name' : f.field;
-        var col = field === 'product_name' ? PRODUCT_EFF : ('d.' + field);
+        // product_name ловимо і в деноp-колонці, і в будь-якому рядку
+        // deal_products. Інакше угода з [Content, PPC] не знайдеться по
+        // product_name='PPC', якщо 'PPC' не перший у списку.
+        if (field === 'product_name') {
+          var esc = String(f.value).replace(/'/g,"''");
+          var dpExists = "EXISTS (SELECT 1 FROM pipedrive.deal_products dp WHERE dp.deal_id=d.id AND ";
+          if (f.op === '=') where.push("(NULLIF(d.product_name,'')='" + esc + "' OR " + dpExists + "dp.name='" + esc + "'))");
+          else if (f.op === '!=') where.push("(COALESCE(NULLIF(d.product_name,''),'')<>'" + esc + "' AND NOT " + dpExists + "dp.name='" + esc + "'))");
+          else if (f.op === 'contains') where.push("(d.product_name ILIKE '%" + esc + "%' OR " + dpExists + "dp.name ILIKE '%" + esc + "%'))");
+          else if (f.op === 'is null') where.push("(NULLIF(d.product_name,'') IS NULL AND NOT " + dpExists + "dp.name IS NOT NULL AND dp.name<>''))");
+          else if (f.op === 'is not null') where.push("(NULLIF(d.product_name,'') IS NOT NULL OR " + dpExists + "dp.name IS NOT NULL AND dp.name<>''))");
+          return;
+        }
+        var col = 'd.' + field;
         if (f.op === '=') where.push(col + " = '" + String(f.value).replace(/'/g,"''") + "'");
         else if (f.op === '!=') where.push(col + " != '" + String(f.value).replace(/'/g,"''") + "'");
         else if (f.op === '>=') where.push(col + " >= '" + f.value + "'");
@@ -235,7 +248,12 @@ function buildReportFromDB(filters, groupBy) {
           if (dateOnly) where.push(col + " < ('" + f.value + "'::date + INTERVAL '1 day')");
           else where.push(col + " <= '" + f.value + "'");
         }
-        else if (f.op === 'in') where.push(col + " IN (" + f.value.join(',') + ")");
+        else if (f.op === 'in') {
+          // Quote every value so strings round-trip safely; numeric columns
+          // accept quoted literals via implicit cast in Postgres.
+          var quoted = (f.value || []).map(function(v){return "'" + String(v).replace(/'/g,"''") + "'";}).join(',');
+          if (quoted) where.push(col + " IN (" + quoted + ")");
+        }
         else if (f.op === 'contains') where.push(col + " ILIKE '%" + String(f.value).replace(/'/g,"''") + "%'");
         else if (f.op === 'is null') where.push(col + " IS NULL");
         else if (f.op === 'is not null') where.push(col + " IS NOT NULL");

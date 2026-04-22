@@ -282,7 +282,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-04-22-multi-product';
+var APP_VERSION='2026-04-22-filter-audit';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
@@ -685,7 +685,16 @@ function addFilterRow(){
 function addFilterRowWithData(data){
   addFilterRow();var rows=document.querySelectorAll('.filter-row');var row=rows[rows.length-1];
   var fs=row.querySelector('.field-select');fs.value=data.field_id;fs.onchange();
-  var os=row.querySelector('.operator-select');os.value=data.operator;if(os.onchange)os.onchange();
+  var os=row.querySelector('.operator-select');
+  // If the saved operator isn't in Config.gs operators for this field any
+  // more (e.g. preset was saved when the list included IS NOT NULL but the
+  // config was tightened later), inject it as an <option> so the row loads
+  // correctly instead of silently resetting to the first operator.
+  if(data.operator){
+    var has=false;for(var j=0;j<os.options.length;j++){if(os.options[j].value===data.operator){has=true;break;}}
+    if(!has){var opt=document.createElement('option');opt.value=data.operator;opt.textContent=(opLabels[data.operator]||data.operator);os.appendChild(opt);}
+  }
+  os.value=data.operator;if(os.onchange)os.onchange();
   var vc=row.querySelector('.value-container');
   // Date range: populate date-from / date-to inputs directly. data.value
   // is the `>=` boundary, data.extra_value is the `<=` boundary (packed
@@ -883,7 +892,7 @@ var FIELD_ID_TO_SQL={
   12500:'c_utm_medium',12501:'c_utm_campaign',12502:'c_utm_term',12503:'c_utm_content',
   12508:'c_site_page',12489:'c_comment',12527:'c_kp_link',12512:'c_quality_date',
   12488:'c_control_date',12492:'c_contact_date',12494:'c_utm',12514:'c_phone_webpromo',
-  12528:'c_kp_specialist',12529:'c_loss_comment',12511:'title' // product_name search via title
+  12528:'c_kp_specialist',12529:'c_loss_comment',12511:'product_name'
 };
 
 function runReport(){
@@ -892,15 +901,12 @@ function runReport(){
   // remove, change) is reflected in the SQL that goes to the server.
   var c=collectConditions();if(!c)return;showLoading(true);hideError();
   document.getElementById('report-section').style.display='none';
-  // Convert field_id conditions to SQL filters
+  // Convert field_id conditions to SQL filters.
   var dbFilters=c.map(function(cond){
     var col=FIELD_ID_TO_SQL[cond.field_id];if(!col)return null;
     var opMap={'=':'=','!=':'!=','>=':'>=','<=':'<=','>':'>','<':'<','LIKE':'contains','IS NULL':'is null','IS NOT NULL':'is not null','IN':'in'};
-    // product_name (12511) lives as a denormalized column on deals; use it
-    // directly with the real operator so IS NOT NULL / = / LIKE all work.
-    if(cond.field_id===12511)return {field:'product_name',op:opMap[cond.operator]||'=',value:cond.value};
-    if(cond.operator==='IN')return {field:col,op:'in',value:cond.value};
-    return {field:col,op:opMap[cond.operator]||'=',value:cond.value};
+    var sqlOp=opMap[cond.operator]||'=';
+    return {field:col,op:sqlOp,value:cond.value};
   }).filter(function(x){return x;});
   var gb=document.getElementById('group-by').value;
   google.script.run.withSuccessHandler(function(r){showLoading(false);if(r.error){showError(r.error);return;}if(r._debug){document.getElementById('debug-filters').textContent=JSON.stringify(r._debug.inputFilters,null,2);document.getElementById('debug-sql').textContent=r._debug.sql;document.getElementById('debug-count').textContent='Знайдено угод: '+r._debug.dealsCount;document.getElementById('debug-modal').style.display='flex';}lastData=r;renderReport(r);saveCurrentState();collapseFilters();}).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildReportFromDB(dbFilters,gb);
