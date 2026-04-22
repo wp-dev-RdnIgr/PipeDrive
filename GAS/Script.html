@@ -836,7 +836,26 @@ function runReport(){
     return {field:col,op:opMap[cond.operator]||'=',value:cond.value};
   }).filter(function(x){return x;});
   var gb=document.getElementById('group-by').value;
-  google.script.run.withSuccessHandler(function(r){showLoading(false);if(r.error){showError(r.error);return;}if(r._debug){document.getElementById('debug-filters').textContent=JSON.stringify(r._debug.inputFilters,null,2);document.getElementById('debug-sql').textContent=r._debug.sql;document.getElementById('debug-count').textContent='Знайдено угод: '+r._debug.dealsCount;document.getElementById('debug-modal').style.display='flex';}lastData=r;renderReport(r);saveCurrentState();}).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildReportFromDB(dbFilters,gb);
+  google.script.run.withSuccessHandler(function(r){showLoading(false);if(r.error){showError(r.error);return;}if(r._debug){document.getElementById('debug-filters').textContent=JSON.stringify(r._debug.inputFilters,null,2);document.getElementById('debug-sql').textContent=r._debug.sql;document.getElementById('debug-count').textContent='Знайдено угод: '+r._debug.dealsCount;document.getElementById('debug-modal').style.display='flex';}lastData=r;renderReport(r);saveCurrentState();collapseFilters();}).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildReportFromDB(dbFilters,gb);
+}
+
+function toggleFilters(){document.getElementById('filter-panel').classList.toggle('collapsed');}
+function collapseFilters(){document.getElementById('filter-panel').classList.add('collapsed');}
+function expandFilters(){document.getElementById('filter-panel').classList.remove('collapsed');}
+
+function switchReportView(name){
+  document.querySelectorAll('#report-subtabs .sub-tab').forEach(function(t){t.classList.toggle('active',t.dataset.subtab===name);});
+  document.getElementById('subview-table').style.display=name==='table'?'block':'none';
+  document.getElementById('subview-charts').style.display=name==='charts'?'block':'none';
+  // Google Charts compute zero width when their container is display:none,
+  // so re-draw on switch to ensure the "Візуалізація" tab always shows
+  // correctly sized charts.
+  if(name==='charts'&&lastData){
+    if(lastData.charts)renderCharts(lastData.charts);
+    var id=getActivePresetId();
+    var preset=id?presets.find(function(p){return p.id===id;}):null;
+    if(preset&&preset.enhanced)renderEnhancedCharts(lastData.deals||[],lastData.totals||{},preset);
+  }
 }
 
 function renderReport(r){

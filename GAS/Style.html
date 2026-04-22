@@ -105,6 +105,19 @@ header h1{font-size:22px;font-weight:700;color:var(--gray-900);letter-spacing:-.
 /* ===== Panels ===== */
 .panel{background:#fff;border-radius:var(--radius-lg);padding:20px 22px;box-shadow:var(--shadow-sm);margin-bottom:16px;border:1px solid var(--gray-100)}
 .panel h2{font-size:12px;font-weight:700;color:var(--gray-500);margin-bottom:14px;text-transform:uppercase;letter-spacing:.05em}
+.panel-head{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;margin-bottom:14px}
+.panel-head h2{margin-bottom:0}
+.panel-head:hover h2{color:var(--gray-700)}
+.panel-chevron{width:10px;height:10px;border-right:2px solid var(--gray-400);border-bottom:2px solid var(--gray-400);transform:rotate(45deg);transition:transform .15s ease;margin-right:4px;margin-bottom:4px}
+#filter-panel.collapsed .panel-head{margin-bottom:0}
+#filter-panel.collapsed #filter-body{display:none}
+#filter-panel.collapsed .panel-chevron{transform:rotate(-45deg);margin-bottom:0;margin-top:4px}
+
+/* ===== Sub-tabs (report view switch) ===== */
+.sub-tabs{display:inline-flex;gap:2px;background:var(--gray-100);padding:3px;border-radius:8px;margin-bottom:14px}
+.sub-tab{padding:7px 16px;background:transparent;border:none;border-radius:6px;font-size:13px;font-weight:500;color:var(--gray-600);cursor:pointer;font-family:inherit;transition:var(--transition)}
+.sub-tab:hover{color:var(--gray-800)}
+.sub-tab.active{background:#fff;color:var(--gray-900);box-shadow:var(--shadow-sm)}
 
 /* ===== Preset cards ===== */
 #presets-panel{margin-bottom:16px}
