@@ -282,7 +282,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-04-22-multi-product-cell';
+var APP_VERSION='2026-04-22-drop-kpi-extra';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
@@ -944,45 +944,18 @@ function renderReport(r){
 }
 
 function hideEnhancedCharts(){
-  document.getElementById('kpi-extra-cards').style.display='none';
   ['chart-loss-reasons','chart-monthly-trend','chart-conv-manager','chart-heatmap'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display='none';
   });
 }
 
 function renderEnhancedCharts(deals,totals,preset){
-  renderKpiExtra(deals,totals);
   google.charts.setOnLoadCallback(function(){
     renderLossReasons(deals);
     renderMonthlyTrend(deals);
     renderConvByManager(deals);
     renderHeatmapStageManager(deals,preset);
   });
-}
-
-function renderKpiExtra(deals,t){
-  var pipelineSums={},avgSums={},avgCounts={},forecastSums={};
-  deals.forEach(function(d){
-    var v=parseFloat(d.value)||0;if(!v)return;
-    var c=d.currency||'UAH';
-    if(d.status==='open'){
-      pipelineSums[c]=(pipelineSums[c]||0)+v;
-      forecastSums[c]=(forecastSums[c]||0)+v*((parseFloat(d.probability)||0)/100);
-    }
-    if(d.status==='won'){
-      avgSums[c]=(avgSums[c]||0)+v;
-      avgCounts[c]=(avgCounts[c]||0)+1;
-    }
-  });
-  var avgPerCurrency={};
-  Object.keys(avgSums).forEach(function(k){avgPerCurrency[k]=Math.round(avgSums[k]/avgCounts[k]);});
-  Object.keys(forecastSums).forEach(function(k){forecastSums[k]=Math.round(forecastSums[k]);});
-  var el=document.getElementById('kpi-extra-cards');
-  el.innerHTML=
-    '<div class="card kpi-pipeline">'+renderSumCard(pipelineSums)+'<div class="lbl">Сума в pipeline</div></div>'+
-    '<div class="card kpi-avg">'+renderSumCard(avgPerCurrency)+'<div class="lbl">Середній чек (виграні)</div></div>'+
-    '<div class="card kpi-forecast">'+renderSumCard(forecastSums)+'<div class="lbl">Прогноз (probability × pipeline)</div></div>';
-  el.style.display='grid';
 }
 
 
