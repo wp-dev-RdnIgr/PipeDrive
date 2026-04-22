@@ -202,7 +202,8 @@ var PRESET_REPORTS = [
     name:'Тендери',
     icon:'ТН',
     description:'Тендерні угоди: воронка, причини програшу, коментарі',
-    enhanced:true,
+    enhanced:false,
+    hideCharts:true,
     funnelStages:[
       {id:41,name:'Підготовка пропозицій'},
       {id:42,name:'Презентація пропозицій'},
@@ -236,6 +237,7 @@ var PRESET_REPORTS = [
       {field:'stage_id',op:'in',value:[41,42,43,44,46,47]}
     ],
     columns:[
+      {key:'title',label:'Назва угоди',deal_link:true,width:220,truncate:true},
       {key:'label',label:'Країна',lookup:12463,width:110},
       {key:'add_time',label:'Дата заведення ліда',date:true,width:110},
       {key:'close_time',label:'Дата фінального статусу',date:true,width:130},

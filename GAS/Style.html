@@ -63,6 +63,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',Roboto,sans
 /* ===== Header ===== */
 header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px}
 header h1{font-size:22px;font-weight:700;color:var(--gray-900);letter-spacing:-.02em}
+.header-actions{display:flex;align-items:center;gap:10px}
+.header-gear{width:34px;height:34px}
+.gear-icon{width:18px;height:18px;display:inline-block;background:currentColor;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;-webkit-mask-size:contain;mask-repeat:no-repeat;mask-position:center;mask-size:contain;-webkit-mask-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='3'/><path d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z'/></svg>");mask-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='3'/><path d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z'/></svg>")}
 .tabs{display:flex;gap:2px;background:var(--gray-100);padding:3px;border-radius:8px}
 .tab{padding:7px 16px;background:transparent;border:none;border-radius:6px;font-size:13px;font-weight:500;color:var(--gray-600);cursor:pointer;font-family:inherit;transition:var(--transition)}
 .tab:hover{color:var(--gray-800)}
@@ -112,6 +115,11 @@ header h1{font-size:22px;font-weight:700;color:var(--gray-900);letter-spacing:-.
 #filter-panel.collapsed .panel-head{margin-bottom:0}
 #filter-panel.collapsed #filter-body{display:none}
 #filter-panel.collapsed .panel-chevron{transform:rotate(-45deg);margin-bottom:0;margin-top:4px}
+/* Згорнута панель фільтрів — підсвічуємо лівим бордером і легкою тінню,
+   щоб користувач не загубив, що фільтри застосовані. */
+#filter-panel.collapsed{border-left:4px solid var(--primary);box-shadow:0 1px 3px rgba(59,130,246,.18),0 0 0 1px var(--primary-light)}
+#filter-panel.collapsed .panel-head h2{color:var(--primary-dark)}
+#filter-panel.collapsed .panel-chevron{border-color:var(--primary)}
 
 /* ===== Sub-tabs (report view switch) ===== */
 .sub-tabs{display:inline-flex;gap:2px;background:var(--gray-100);padding:3px;border-radius:8px;margin-bottom:14px}
@@ -198,6 +206,9 @@ header h1{font-size:22px;font-weight:700;color:var(--gray-900);letter-spacing:-.
 .primary:disabled{opacity:.5;cursor:not-allowed}
 .ghost{background:#fff;color:var(--gray-700);border:1.5px solid var(--gray-200);padding:8px 16px;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-weight:500;font-family:inherit;transition:var(--transition)}
 .ghost:hover{border-color:var(--gray-400);background:var(--gray-50)}
+.success{background:var(--success);color:#fff;border:none;padding:9px 18px;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;letter-spacing:-.01em;transition:var(--transition);box-shadow:0 0 0 0 rgba(16,185,129,.45)}
+.success:hover{background:#059669;box-shadow:0 0 0 4px rgba(16,185,129,.15)}
+.success:active{transform:translateY(.5px)}
 
 /* ===== Loading & Errors ===== */
 #loading{text-align:center;padding:48px;color:var(--gray-500)}
