@@ -183,6 +183,7 @@ var PRESET_REPORTS = [
       {field:'stage_id',op:'in',value:[14,36,47]}
     ],
     columns:[
+      {key:'title',label:'Назва угоди',deal_link:true,width:220,truncate:true},
       {key:'label',label:'Країна',lookup:12463,width:110},
       {key:'add_time',label:'Дата ліда',date:true,width:100},
       {key:'org_name',label:'Сайт компанії',width:180,truncate:true},
