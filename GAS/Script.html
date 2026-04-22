@@ -282,7 +282,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-04-22-filter-audit';
+var APP_VERSION='2026-04-22-multi-product-cell';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
@@ -1312,6 +1312,12 @@ function lookupValue(fieldId,val){
 }
 function renderCell(c,d){
   var v=d[c.key];
+  // product_name: показуємо всі товари з deal_products, а не тільки перший.
+  // Для мультипродуктової угоди (напр. PPC + SEO + Analytics) без цього
+  // бачимо тільки один товар і втрачаємо інформацію.
+  if(c.key==='product_name'&&Array.isArray(d.products)&&d.products.length){
+    v=d.products.join(', ');
+  }
   var style=c.width?' style="max-width:'+c.width+'px"':'';
   if(c.deal_link){
     var title=String(v||'(без назви)');
