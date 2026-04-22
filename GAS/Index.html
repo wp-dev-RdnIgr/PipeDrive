@@ -9,10 +9,13 @@
   <div id="app">
     <header>
       <h1>Звіти по угодах Pipedrive</h1>
-      <nav class="tabs">
-        <button class="tab active" data-tab="report" onclick="switchTab('report')">Звіт</button>
-        <button class="tab" data-tab="ai" onclick="switchTab('ai')">AI-помічник</button>
-      </nav>
+      <div class="header-actions">
+        <button class="icon-btn header-gear" id="btn-open-refresh" title="Оновити дані з Pipedrive" onclick="openRefreshModal()"><span class="gear-icon"></span></button>
+        <nav class="tabs">
+          <button class="tab active" data-tab="report" onclick="switchTab('report')">Звіт</button>
+          <button class="tab" data-tab="ai" onclick="switchTab('ai')">AI-помічник</button>
+        </nav>
+      </div>
     </header>
 
     <div id="view-report" class="layout">
@@ -35,17 +38,6 @@
       </div>
       <div class="report-header-actions" id="rh-actions"></div>
     </div>
-    <section id="refresh-panel" class="panel">
-      <h2>Оновлення даних</h2>
-      <div class="refresh-row">
-        <label>Період:</label>
-        <input type="date" id="date-from" class="date-input" />
-        <span style="color:var(--gray-400)">—</span>
-        <input type="date" id="date-to" class="date-input" />
-        <button id="btn-refresh" class="primary" onclick="refreshData()">Оновити дані</button>
-      </div>
-    </section>
-
     <section id="filter-panel" class="panel">
       <div class="panel-head" onclick="toggleFilters()">
         <h2>Фільтри</h2>
@@ -56,13 +48,8 @@
         <div class="filter-actions">
           <button id="btn-add" onclick="addFilterRow()">+ Додати умову</button>
           <div class="right-actions">
-            <button id="btn-save-preset" class="ghost" style="display:none" onclick="savePresetChanges()">Зберегти зміни</button>
+            <button id="btn-save-preset" class="success" style="display:none" onclick="savePresetChanges()">Зберегти зміни</button>
             <button id="btn-save-as" class="ghost" style="display:none" onclick="openPresetEditor(null)">Зберегти як звіт</button>
-            <select id="group-by">
-              <option value="none">Без групування</option>
-              <option value="owner">За власником</option>
-              <option value="pipeline">За воронкою</option>
-            </select>
             <button id="btn-run" class="primary" onclick="runReport()">Побудувати звіт</button>
           </div>
         </div>
@@ -74,7 +61,6 @@
 
     <section id="report-section" style="display:none">
       <div id="summary-cards"></div>
-      <div id="kpi-extra-cards" style="display:none"></div>
       <nav class="sub-tabs" id="report-subtabs">
         <button class="sub-tab active" data-subtab="table" onclick="switchReportView('table')">Таблиця</button>
         <button class="sub-tab" data-subtab="charts" onclick="switchReportView('charts')">Візуалізація</button>
@@ -205,6 +191,35 @@
       <h2 id="loss-comments-title"></h2>
       <div id="loss-comments-list" style="max-height:400px;overflow-y:auto;margin:12px 0"></div>
       <button class="primary" onclick="document.getElementById('loss-comments-modal').style.display='none'">Закрити</button>
+    </div>
+  </div>
+
+  <!-- Refresh-Data Modal (period selector + trigger) -->
+  <div id="refresh-modal" class="modal" style="display:none">
+    <div class="modal-content" style="max-width:480px;text-align:left">
+      <h2 style="text-align:center;margin-bottom:8px">Оновлення даних з Pipedrive</h2>
+      <p style="color:var(--gray-500);font-size:13px;margin-bottom:14px;text-align:center">Оберіть період, за який підтягнути актуальні угоди.</p>
+      <label class="form-label">Період</label>
+      <select id="refresh-period" class="form-input" onchange="onRefreshPeriodChange()">
+        <option value="thisYear">Цей рік</option>
+        <option value="lastYear">Минулий рік</option>
+        <option value="last30">Останні 30 днів</option>
+        <option value="last90">Останні 90 днів</option>
+        <option value="custom">Власний діапазон</option>
+      </select>
+      <div id="refresh-custom-range" style="display:none;margin-top:10px">
+        <label class="form-label">Від — До</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="date" id="date-from" class="date-input form-input" style="flex:1" />
+          <span style="color:var(--gray-400)">—</span>
+          <input type="date" id="date-to" class="date-input form-input" style="flex:1" />
+        </div>
+      </div>
+      <div id="refresh-summary" style="background:var(--gray-50);border-radius:6px;padding:10px 12px;margin:12px 0;border:1px solid var(--gray-100);font-size:12px;color:var(--gray-700)"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+        <button class="ghost" onclick="document.getElementById('refresh-modal').style.display='none'">Скасувати</button>
+        <button class="primary" id="btn-refresh" onclick="refreshData()">Оновити дані</button>
+      </div>
     </div>
   </div>
 

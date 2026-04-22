@@ -230,13 +230,49 @@ document.addEventListener('DOMContentLoaded',function(){
   var y=new Date().getFullYear();
   document.getElementById('date-from').value=y+'-01-01';
   document.getElementById('date-to').value=y+'-12-31';
+  applyRefreshPeriod();
 });
 
-// ===== SYNC MODAL =====
+// ===== REFRESH-DATA MODAL =====
+// Швидкі періоди для оновлення даних. Зберігаємо у date-from/date-to,
+// бо backend вже їх читає; user бачить читабельні опції замість «дві
+// дати, без контексту».
+function refreshPeriodToDates(value){
+  var now=new Date();var y=now.getFullYear();
+  function ymd(d){var m=String(d.getMonth()+1).padStart(2,'0');var dd=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+dd;}
+  if(value==='thisYear')return {from:y+'-01-01',to:y+'-12-31'};
+  if(value==='lastYear')return {from:(y-1)+'-01-01',to:(y-1)+'-12-31'};
+  if(value==='last30')return {from:ymd(new Date(Date.now()-29*864e5)),to:ymd(now)};
+  if(value==='last90')return {from:ymd(new Date(Date.now()-89*864e5)),to:ymd(now)};
+  return null;
+}
+function applyRefreshPeriod(){
+  var sel=document.getElementById('refresh-period');if(!sel)return;
+  var custom=document.getElementById('refresh-custom-range');
+  if(sel.value==='custom'){if(custom)custom.style.display='block';refreshSummary();return;}
+  if(custom)custom.style.display='none';
+  var d=refreshPeriodToDates(sel.value);if(!d)return;
+  document.getElementById('date-from').value=d.from;
+  document.getElementById('date-to').value=d.to;
+  refreshSummary();
+}
+function onRefreshPeriodChange(){applyRefreshPeriod();}
+function refreshSummary(){
+  var s=document.getElementById('refresh-summary');if(!s)return;
+  var df=document.getElementById('date-from').value;
+  var dt=document.getElementById('date-to').value;
+  s.textContent=(df&&dt)?('Угоди в межах '+df+' — '+dt+' будуть синхронізовані з Pipedrive.'):'Оберіть діапазон.';
+}
+function openRefreshModal(){
+  applyRefreshPeriod();
+  document.getElementById('refresh-modal').style.display='flex';
+}
+
 function refreshData(){
   var df=document.getElementById('date-from').value;
   var dt=document.getElementById('date-to').value;
   if(!df||!dt){showError('Оберіть період');return;}
+  document.getElementById('refresh-modal').style.display='none';
   document.getElementById('sync-modal').style.display='flex';
   document.getElementById('sync-progress').style.display='block';
   document.getElementById('sync-result').style.display='none';
@@ -282,7 +318,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-04-22-filter-audit';
+var APP_VERSION='2026-04-22-gear-tn-greenbtn';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
@@ -908,7 +944,8 @@ function runReport(){
     var sqlOp=opMap[cond.operator]||'=';
     return {field:col,op:sqlOp,value:cond.value};
   }).filter(function(x){return x;});
-  var gb=document.getElementById('group-by').value;
+  // group-by UI removed; backend always gets 'none' (no aggregation rows).
+  var gb='none';
   google.script.run.withSuccessHandler(function(r){showLoading(false);if(r.error){showError(r.error);return;}if(r._debug){document.getElementById('debug-filters').textContent=JSON.stringify(r._debug.inputFilters,null,2);document.getElementById('debug-sql').textContent=r._debug.sql;document.getElementById('debug-count').textContent='Знайдено угод: '+r._debug.dealsCount;document.getElementById('debug-modal').style.display='flex';}lastData=r;renderReport(r);saveCurrentState();collapseFilters();}).withFailureHandler(function(e){showLoading(false);showError(e.message);}).buildReportFromDB(dbFilters,gb);
 }
 
@@ -927,6 +964,7 @@ function switchReportView(name){
     if(lastData.charts)renderCharts(lastData.charts);
     var id=getActivePresetId();
     var preset=id?presets.find(function(p){return p.id===id;}):null;
+    renderConvByManager(lastData.deals||[]);
     if(preset&&preset.enhanced)renderEnhancedCharts(lastData.deals||[],lastData.totals||{},preset);
   }
 }
@@ -939,50 +977,45 @@ function renderReport(r){
   renderTable(r.deals);
   var id=getActivePresetId();
   var preset=id?presets.find(function(p){return p.id===id;}):null;
+  // Пресети з hideCharts (наприклад «Тендери») показують лише таблицю —
+  // ховаємо суб-таб «Візуалізація» і його контент, форсимо таб «Таблиця».
+  applyChartsVisibility(preset);
+  if(preset&&preset.hideCharts)return;
+  // Чарт «Конверсія» з табами (менеджери / послуги / канали / джерела)
+  // показуємо в КОЖНОМУ звіті, а не лише в enhanced. У СП нема enhanced-
+  // прапора, але користувачу теж потрібен цей чарт.
+  google.charts.setOnLoadCallback(function(){renderConvByManager(r.deals||[]);});
   if(preset&&preset.enhanced){renderEnhancedCharts(r.deals||[],r.totals||{},preset);}
   else{hideEnhancedCharts();}
 }
+function applyChartsVisibility(preset){
+  var subtabs=document.getElementById('report-subtabs');
+  var chartsView=document.getElementById('subview-charts');
+  var tableView=document.getElementById('subview-table');
+  if(!subtabs||!chartsView||!tableView)return;
+  if(preset&&preset.hideCharts){
+    subtabs.style.display='none';
+    chartsView.style.display='none';
+    tableView.style.display='block';
+    document.querySelectorAll('#report-subtabs .sub-tab').forEach(function(t){t.classList.toggle('active',t.dataset.subtab==='table');});
+  }else{
+    subtabs.style.display='';
+  }
+}
 
 function hideEnhancedCharts(){
-  document.getElementById('kpi-extra-cards').style.display='none';
-  ['chart-loss-reasons','chart-monthly-trend','chart-conv-manager','chart-heatmap'].forEach(function(id){
+  // chart-conv-manager intentionally NOT hidden — it's now a global chart.
+  ['chart-loss-reasons','chart-monthly-trend','chart-heatmap'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display='none';
   });
 }
 
 function renderEnhancedCharts(deals,totals,preset){
-  renderKpiExtra(deals,totals);
   google.charts.setOnLoadCallback(function(){
     renderLossReasons(deals);
     renderMonthlyTrend(deals);
-    renderConvByManager(deals);
     renderHeatmapStageManager(deals,preset);
   });
-}
-
-function renderKpiExtra(deals,t){
-  var pipelineSums={},avgSums={},avgCounts={},forecastSums={};
-  deals.forEach(function(d){
-    var v=parseFloat(d.value)||0;if(!v)return;
-    var c=d.currency||'UAH';
-    if(d.status==='open'){
-      pipelineSums[c]=(pipelineSums[c]||0)+v;
-      forecastSums[c]=(forecastSums[c]||0)+v*((parseFloat(d.probability)||0)/100);
-    }
-    if(d.status==='won'){
-      avgSums[c]=(avgSums[c]||0)+v;
-      avgCounts[c]=(avgCounts[c]||0)+1;
-    }
-  });
-  var avgPerCurrency={};
-  Object.keys(avgSums).forEach(function(k){avgPerCurrency[k]=Math.round(avgSums[k]/avgCounts[k]);});
-  Object.keys(forecastSums).forEach(function(k){forecastSums[k]=Math.round(forecastSums[k]);});
-  var el=document.getElementById('kpi-extra-cards');
-  el.innerHTML=
-    '<div class="card kpi-pipeline">'+renderSumCard(pipelineSums)+'<div class="lbl">Сума в pipeline</div></div>'+
-    '<div class="card kpi-avg">'+renderSumCard(avgPerCurrency)+'<div class="lbl">Середній чек (виграні)</div></div>'+
-    '<div class="card kpi-forecast">'+renderSumCard(forecastSums)+'<div class="lbl">Прогноз (probability × pipeline)</div></div>';
-  el.style.display='grid';
 }
 
 
@@ -1054,11 +1087,12 @@ function renderMonthlyTrend(deals){
   }));
 }
 
-var _chartFilters={convDim:'manager',convMgr:null,convProduct:null,convChannel:null,heatMgr:null};
+var _chartFilters={convDim:'manager',convMgr:null,convProduct:null,convChannel:null,convSource:null,heatMgr:null};
 var CONV_DIMS={
   manager:{field:'owner_name',fallback:'(не вказано)',title:'Конверсія по менеджерах',axis:'Менеджер',filterLabel:'Всі менеджери',tabLabel:'По менеджерах',stateKey:'convMgr'},
   product:{field:'product_name',fallback:'(без товару)',title:'Конверсія по послугах',axis:'Послуга',filterLabel:'Всі послуги',tabLabel:'По послугах',stateKey:'convProduct'},
-  channel:{field:'c_utm_medium',fallback:'(без каналу)',title:'Конверсія по каналах',axis:'Канал',filterLabel:'Всі канали',tabLabel:'По каналах',stateKey:'convChannel'}
+  channel:{field:'c_utm_medium',fallback:'(без каналу)',title:'Конверсія по каналах',axis:'Канал',filterLabel:'Всі канали',tabLabel:'По каналах',stateKey:'convChannel'},
+  source:{field:'c_source_form',fallback:'(без джерела)',title:'Конверсія по джерелах',axis:'Джерело',filterLabel:'Всі джерела',tabLabel:'По джерелах',stateKey:'convSource',lookup:12496}
 };
 function uniqOwners(deals){
   var set={};deals.forEach(function(d){var n=d.owner_name||'(не вказано)';set[n]=true;});
@@ -1070,14 +1104,24 @@ function uniqDimValues(deals,field,fallback){
 }
 // Значення по обраному dim для однієї угоди: для продуктів — всі послуги
 // з deal_products (щоб мультипродуктова угода враховувалась у кожному
-// стовпчику), для решти — одне значення з відповідної колонки.
+// стовпчику), для джерела — лейбл із lookup (інакше показували б id 30/43
+// замість «Дзвінок»), для решти — одне значення з відповідної колонки.
 function dealDimValues(deal,dim,cfg){
   if(dim==='product'){
     var list=(deal.products&&deal.products.length)?deal.products:[];
     if(!list.length&&deal.product_name)list=[deal.product_name];
     return list.length?list:[cfg.fallback];
   }
-  return [deal[cfg.field]||cfg.fallback];
+  var raw=deal[cfg.field];
+  if(!raw)return [cfg.fallback];
+  if(cfg.lookup){
+    // sets можуть містити кілька id через кому (напр. "43,90"). Кожен
+    // лейбл стає окремим стовпчиком, мультиджерельні угоди враховуються
+    // в кожному джерелі.
+    var labels=String(raw).split(',').map(function(id){return lookupValue(cfg.lookup,id.trim())||cfg.fallback;});
+    return labels;
+  }
+  return [raw];
 }
 function mountMgrFilter(containerId,allVals,selected,onChange,placeholder){
   var wrap=document.getElementById(containerId);if(!wrap)return;
@@ -1128,7 +1172,7 @@ function renderConvByManager(deals){
   var dt=new google.visualization.DataTable();
   dt.addColumn('string',cfg.axis);dt.addColumn('number','Виграні');dt.addColumn('number','Програні');dt.addColumn('number','Відкриті');dt.addColumn({type:'string',role:'annotation'});
   rows.forEach(function(m){dt.addRow([m.name,m.won,m.lost,m.open,m.winRate+'%']);});
-  var tabsHtml=['manager','product','channel'].map(function(d){
+  var tabsHtml=['manager','product','channel','source'].map(function(d){
     var c=CONV_DIMS[d];
     return '<button type="button" class="chart-tab'+(d===dim?' active':'')+'" onclick="switchConvDim(\''+d+'\')">'+c.tabLabel+'</button>';
   }).join('');
@@ -1312,6 +1356,12 @@ function lookupValue(fieldId,val){
 }
 function renderCell(c,d){
   var v=d[c.key];
+  // product_name: показуємо всі товари з deal_products, а не тільки перший.
+  // Для мультипродуктової угоди (напр. PPC + SEO + Analytics) без цього
+  // бачимо тільки один товар і втрачаємо інформацію.
+  if(c.key==='product_name'&&Array.isArray(d.products)&&d.products.length){
+    v=d.products.join(', ');
+  }
   var style=c.width?' style="max-width:'+c.width+'px"':'';
   if(c.deal_link){
     var title=String(v||'(без назви)');
