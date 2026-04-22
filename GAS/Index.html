@@ -75,41 +75,33 @@
     <section id="report-section" style="display:none">
       <div id="summary-cards"></div>
       <div id="kpi-extra-cards" style="display:none"></div>
-      <nav class="sub-tabs" id="report-subtabs">
-        <button class="sub-tab active" data-subtab="table" onclick="switchReportView('table')">Таблиця</button>
-        <button class="sub-tab" data-subtab="charts" onclick="switchReportView('charts')">Візуалізація</button>
-      </nav>
-      <div id="subview-charts" style="display:none">
-        <div id="charts-section">
-          <div class="chart-row">
-            <div class="chart-box full" id="chart-funnel" style="display:none"></div>
-          </div>
-          <div class="chart-row">
-            <div class="chart-box full" id="chart-loss-reasons" style="display:none"></div>
-          </div>
-          <div class="chart-row">
-            <div class="chart-box full" id="chart-monthly-trend" style="display:none"></div>
-          </div>
-          <div class="chart-row">
-            <div class="chart-box full" id="chart-conv-manager" style="display:none"></div>
-          </div>
-          <div class="chart-row">
-            <div class="chart-box full" id="chart-heatmap" style="display:none"></div>
-          </div>
-          <div class="chart-row"><div class="chart-box" id="chart-owners"></div><div class="chart-box" id="chart-months"></div></div>
-          <div class="chart-row"><div class="chart-box" id="chart-pipelines"></div></div>
+      <div id="charts-section">
+        <div class="chart-row">
+          <div class="chart-box full" id="chart-funnel" style="display:none"></div>
         </div>
+        <div class="chart-row">
+          <div class="chart-box full" id="chart-loss-reasons" style="display:none"></div>
+        </div>
+        <div class="chart-row">
+          <div class="chart-box full" id="chart-monthly-trend" style="display:none"></div>
+        </div>
+        <div class="chart-row">
+          <div class="chart-box full" id="chart-conv-manager" style="display:none"></div>
+        </div>
+        <div class="chart-row">
+          <div class="chart-box full" id="chart-heatmap" style="display:none"></div>
+        </div>
+        <div class="chart-row"><div class="chart-box" id="chart-owners"></div><div class="chart-box" id="chart-months"></div></div>
+        <div class="chart-row"><div class="chart-box" id="chart-pipelines"></div></div>
       </div>
-      <div id="subview-table">
-        <div id="group-tables"></div>
-        <div class="table-wrap">
-          <div class="table-head">
-            <span class="title">Угоди</span>
-            <span class="count-badge" id="table-count">0</span>
-          </div>
-          <div class="table-scroll"><table id="deals-table"><thead id="deals-thead"></thead><tbody id="deals-tbody"></tbody></table></div>
-          <div class="pagination" id="pagination"></div>
+      <div id="group-tables"></div>
+      <div class="table-wrap">
+        <div class="table-head">
+          <span class="title">Угоди</span>
+          <span class="count-badge" id="table-count">0</span>
         </div>
+        <div class="table-scroll"><table id="deals-table"><thead id="deals-thead"></thead><tbody id="deals-tbody"></tbody></table></div>
+        <div class="pagination" id="pagination"></div>
       </div>
     </section>
     </main>
