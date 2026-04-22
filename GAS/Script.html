@@ -318,7 +318,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-04-22-gear-tn-greenbtn';
+var APP_VERSION='2026-04-22-title-cache-fix';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
@@ -346,7 +346,7 @@ function refreshPresetsFromDB(done){
       });
       presets=Object.keys(byId).map(function(id){return byId[id];})
         .sort(function(a,b){return (b.isBuiltin?1:0)-(a.isBuiltin?1:0)||a.name.localeCompare(b.name);});
-      try{localStorage.setItem('pd_presets_cache',JSON.stringify(presets));}catch(e){}
+      try{localStorage.setItem('pd_presets_cache',JSON.stringify({v:APP_VERSION,data:presets}));}catch(e){}
       initPresets();
     }else{
       console.warn('[PRESETS] DB returned no rows — UI is running on hardcoded Config.gs fallback');
@@ -362,9 +362,22 @@ function refreshPresetsFromDB(done){
 function hydratePresetsFromCache(){
   try{
     var raw=localStorage.getItem('pd_presets_cache');if(!raw)return false;
-    var cached=JSON.parse(raw);if(!Array.isArray(cached)||!cached.length)return false;
+    var parsed=JSON.parse(raw);
+    // Version-stamped cache: якщо Config.gs підняв APP_VERSION, старий
+    // знімок (із застарілими колонками) викидаємо, щоб свіжі зміни
+    // встигли проявитись до того, як приїде відповідь від DB.
+    if(!parsed||parsed.v!==APP_VERSION||!Array.isArray(parsed.data))return false;
+    var cached=parsed.data;if(!cached.length)return false;
     var byId={};presets.forEach(function(p){byId[p.id]=p;});
-    cached.forEach(function(p){byId[p.id]=Object.assign({},byId[p.id]||{},p);});
+    cached.forEach(function(p){
+      var base=byId[p.id]||{};
+      var merged=Object.assign({},base,p);
+      // Для built-in пресетів колонки — істина в Config.gs (hardcoded base).
+      // Без цього кеш перезатирає свіжі колонки з Config.gs старими
+      // значеннями зі снімка (це ховало 'Назва угоди' у СП/Тендерах).
+      if(p.isBuiltin&&base.columns)merged.columns=base.columns;
+      byId[p.id]=merged;
+    });
     presets=Object.keys(byId).map(function(id){return byId[id];});
     console.log('[PRESETS] hydrated',cached.length,'rows from localStorage (will refresh from DB next)');
     return true;
