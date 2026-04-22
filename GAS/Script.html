@@ -207,7 +207,12 @@ document.addEventListener('DOMContentLoaded',function(){
   google.script.run.withSuccessHandler(function(s){stages=s;}).getAllStages();
   google.script.run.withSuccessHandler(function(o){opLabels=o;}).getOperatorsLabels();
   google.script.run.withSuccessHandler(function(p){
-    presets=p;initPresets();updateReportHeader();
+    presets=p;
+    // Seed from last-known-good DB snapshot in localStorage so a flaky
+    // DB fetch or caching layer on the Apps Script side cannot make the
+    // UI fall back to the hardcoded 17-row КП config.
+    hydratePresetsFromCache();
+    initPresets();updateReportHeader();
     // Route ONLY after DB presets are merged, otherwise applyPreset reads
     // the hardcoded config (no unified flag) and loads legacy filters.
     refreshPresetsFromDB(function(){routeFromHash();});
@@ -277,8 +282,10 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
+var APP_VERSION='2026-04-22-preset-diag';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
+    console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
     if(list&&list.length){
       var byId={};presets.forEach(function(p){byId[p.id]=p;});
       list.forEach(function(p){
@@ -299,13 +306,33 @@ function refreshPresetsFromDB(done){
           filters:p.filters||base.filters||[],
           isBuiltin:!!p.isBuiltin
         });
+        console.log('[PRESETS] merged',p.id,'unified=',unified,'filters=',(p.filters||[]).length);
       });
       presets=Object.keys(byId).map(function(id){return byId[id];})
         .sort(function(a,b){return (b.isBuiltin?1:0)-(a.isBuiltin?1:0)||a.name.localeCompare(b.name);});
+      try{localStorage.setItem('pd_presets_cache',JSON.stringify(presets));}catch(e){}
       initPresets();
+    }else{
+      console.warn('[PRESETS] DB returned no rows — UI is running on hardcoded Config.gs fallback');
+      toast('Не вдалось завантажити звіти з БД (працюю на стандартних налаштуваннях)','error');
     }
     if(done)done();
-  }).withFailureHandler(function(){if(done)done();}).listCustomPresets();
+  }).withFailureHandler(function(e){
+    console.error('[PRESETS] listCustomPresets failed:',e&&(e.message||e));
+    toast('Помилка завантаження звітів з БД','error');
+    if(done)done();
+  }).listCustomPresets();
+}
+function hydratePresetsFromCache(){
+  try{
+    var raw=localStorage.getItem('pd_presets_cache');if(!raw)return false;
+    var cached=JSON.parse(raw);if(!Array.isArray(cached)||!cached.length)return false;
+    var byId={};presets.forEach(function(p){byId[p.id]=p;});
+    cached.forEach(function(p){byId[p.id]=Object.assign({},byId[p.id]||{},p);});
+    presets=Object.keys(byId).map(function(id){return byId[id];});
+    console.log('[PRESETS] hydrated',cached.length,'rows from localStorage (will refresh from DB next)');
+    return true;
+  }catch(e){return false;}
 }
 function initPresets(){renderPresetList();}
 
@@ -407,6 +434,8 @@ function updateReportHeader(){
     pencil.textContent='Перейменувати';pencil.onclick=function(){openPresetEditor(_activePresetId);};
     actions.appendChild(pencil);
   }
+  var ver=document.createElement('span');ver.className='report-header-meta';ver.title='Версія скрипта';ver.textContent='v '+APP_VERSION;
+  actions.appendChild(ver);
 }
 
 // ===== HASH ROUTING =====
