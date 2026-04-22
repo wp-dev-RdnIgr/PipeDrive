@@ -282,7 +282,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-04-22-product-coalesce';
+var APP_VERSION='2026-04-22-multi-product';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
@@ -1062,6 +1062,17 @@ function uniqDimValues(deals,field,fallback){
   var set={};deals.forEach(function(d){var v=d[field]||fallback;set[v]=true;});
   return Object.keys(set).sort();
 }
+// Значення по обраному dim для однієї угоди: для продуктів — всі послуги
+// з deal_products (щоб мультипродуктова угода враховувалась у кожному
+// стовпчику), для решти — одне значення з відповідної колонки.
+function dealDimValues(deal,dim,cfg){
+  if(dim==='product'){
+    var list=(deal.products&&deal.products.length)?deal.products:[];
+    if(!list.length&&deal.product_name)list=[deal.product_name];
+    return list.length?list:[cfg.fallback];
+  }
+  return [deal[cfg.field]||cfg.fallback];
+}
 function mountMgrFilter(containerId,allVals,selected,onChange,placeholder){
   var wrap=document.getElementById(containerId);if(!wrap)return;
   wrap.innerHTML='';
@@ -1084,19 +1095,28 @@ function renderConvByManager(deals){
   var box=document.getElementById('chart-conv-manager');
   var dim=_chartFilters.convDim||'manager';
   var cfg=CONV_DIMS[dim]||CONV_DIMS.manager;
-  var allVals=uniqDimValues(deals,cfg.field,cfg.fallback);
+  // Побудова множини унікальних значень dim через dealDimValues, щоб
+  // чарт послуг бачив усі товари з кожної угоди (а не лише перший).
+  var allSet={};
+  deals.forEach(function(d){dealDimValues(d,dim,cfg).forEach(function(v){allSet[v]=true;});});
+  var allVals=Object.keys(allSet).sort();
   if(!allVals.length){box.style.display='none';return;}
   var stateKey=cfg.stateKey;
   if(_chartFilters[stateKey]==null)_chartFilters[stateKey]=allVals.slice();
   _chartFilters[stateKey]=_chartFilters[stateKey].filter(function(v){return allVals.indexOf(v)>=0;});
   if(!_chartFilters[stateKey].length)_chartFilters[stateKey]=allVals.slice();
   var selected=_chartFilters[stateKey];
-  var filtered=deals.filter(function(d){return selected.indexOf(d[cfg.field]||cfg.fallback)>=0;});
+  // Фільтр: лишаємо угоди, у яких хоча б одне значення dim обрано.
+  var filtered=deals.filter(function(d){
+    return dealDimValues(d,dim,cfg).some(function(v){return selected.indexOf(v)>=0;});
+  });
   var buckets={};
   filtered.forEach(function(d){
-    var k=d[cfg.field]||cfg.fallback;
-    if(!buckets[k])buckets[k]={total:0,won:0,lost:0,open:0};
-    buckets[k].total++;buckets[k][d.status]=(buckets[k][d.status]||0)+1;
+    dealDimValues(d,dim,cfg).forEach(function(k){
+      if(selected.indexOf(k)<0)return;
+      if(!buckets[k])buckets[k]={total:0,won:0,lost:0,open:0};
+      buckets[k].total++;buckets[k][d.status]=(buckets[k][d.status]||0)+1;
+    });
   });
   var rows=Object.keys(buckets).map(function(k){var m=buckets[k];m.name=k;m.winRate=m.total>0?Math.round(m.won/m.total*100):0;return m;}).sort(function(a,b){return b.total-a.total;});
   var dt=new google.visualization.DataTable();
