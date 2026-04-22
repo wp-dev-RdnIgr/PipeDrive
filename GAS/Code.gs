@@ -345,17 +345,28 @@ function saveCustomPreset(preset) {
     var name = sqlEscape(preset.name);
     var icon = sqlEscape(preset.icon || preset.name.substring(0,2).toUpperCase());
     var desc = sqlEscape(preset.description || '');
+    // Explicit nulls for legacy fields so stale andConditions/orConditions/
+    // sheetFilters from the seed config cannot leak back on the next load.
     var config = {
       enhanced: !!preset.enhanced,
       filters: preset.filters || [],
       funnelStages: preset.funnelStages || null,
       columns: preset.columns || null,
+      andConditions: [],
+      orConditions: [],
+      sheetFilters: null,
       unified: true
     };
     var configJson = sqlEscape(JSON.stringify(config));
-    var sql = "INSERT INTO pipedrive.report_presets (id, name, icon, description, config, is_builtin) VALUES ('" + id + "', '" + name + "', '" + icon + "', '" + desc + "', '" + configJson + "'::jsonb, false) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, icon = EXCLUDED.icon, description = EXCLUDED.description, config = EXCLUDED.config, updated_at = NOW() WHERE pipedrive.report_presets.is_builtin = false OR pipedrive.report_presets.id = EXCLUDED.id";
-    dbExec(sql);
-    return {ok: true};
+    var sql = "INSERT INTO pipedrive.report_presets (id, name, icon, description, config, is_builtin) VALUES ('" + id + "', '" + name + "', '" + icon + "', '" + desc + "', '" + configJson + "'::jsonb, false) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, icon = EXCLUDED.icon, description = EXCLUDED.description, config = EXCLUDED.config, updated_at = NOW() RETURNING id, updated_at";
+    var resp = dbExec(sql);
+    // Surface DB-side failures. dbExec returns whatever the n8n webhook gives
+    // back; a successful UPSERT returns the RETURNING row (array or object).
+    if (resp && resp.error) return {error: 'DB: ' + resp.error};
+    if (Array.isArray(resp) && resp[0] && resp[0].error) return {error: 'DB: ' + resp[0].error};
+    var row = Array.isArray(resp) ? resp[0] : resp;
+    if (!row || !row.id) return {error: 'DB: збереження не підтверджено'};
+    return {ok: true, updated_at: row.updated_at || null};
   } catch (e) { return {error: e.message || String(e)}; }
 }
 

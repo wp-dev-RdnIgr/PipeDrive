@@ -1,6 +1,6 @@
 var FIELDS = [
   {key:'pipeline',field_id:12460,label:'Воронка',type:'pipeline',operators:['=','!=']},
-  {key:'stage_id',field_id:12462,label:'Етап',type:'stage',operators:['=','!=']},
+  {key:'stage_id',field_id:12462,label:'Етап',type:'stage',operators:['=','!=','IN']},
   {key:'status',field_id:12464,label:'Стан',type:'status',operators:['=','!='],options:[{id:'open',label:'Відкрита'},{id:'won',label:'Виграна'},{id:'lost',label:'Програна'}]},
   {key:'user_id',field_id:12455,label:'Власник',type:'user',operators:['=','!=']},
   {key:'creator_user_id',field_id:12454,label:'Автор',type:'user',operators:['=','!=']},
@@ -80,7 +80,7 @@ var USERS = [
   {id:15621866,name:'Віталій Диблюк',active:false}
 ];
 
-var OPERATORS_LABELS = {'=':'дорівнює','!=':'не дорівнює','>':'більше','<':'менше','>=':'від (включно)','<=':'до (включно)','LIKE':'містить','IS NULL':'порожнє','IS NOT NULL':'не порожнє'};
+var OPERATORS_LABELS = {'=':'дорівнює','!=':'не дорівнює','>':'більше','<':'менше','>=':'від (включно)','<=':'до (включно)','LIKE':'містить','IS NULL':'порожнє','IS NOT NULL':'не порожнє','IN':'один із'};
 
 function getFieldsConfig(){return FIELDS;}
 function getPipelinesConfig(){return PIPELINES;}
