@@ -282,7 +282,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-04-22-preset-diag';
+var APP_VERSION='2026-04-22-product-filter';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
@@ -868,8 +868,9 @@ function runReport(){
   var dbFilters=c.map(function(cond){
     var col=FIELD_ID_TO_SQL[cond.field_id];if(!col)return null;
     var opMap={'=':'=','!=':'!=','>=':'>=','<=':'<=','>':'>','<':'<','LIKE':'contains','IS NULL':'is null','IS NOT NULL':'is not null','IN':'in'};
-    // Special case: product_name (12511) -> JOIN with deal_products
-    if(cond.field_id===12511)return {field:'product_name',op:'=',value:cond.value};
+    // product_name (12511) lives as a denormalized column on deals; use it
+    // directly with the real operator so IS NOT NULL / = / LIKE all work.
+    if(cond.field_id===12511)return {field:'product_name',op:opMap[cond.operator]||'=',value:cond.value};
     if(cond.operator==='IN')return {field:col,op:'in',value:cond.value};
     return {field:col,op:opMap[cond.operator]||'=',value:cond.value};
   }).filter(function(x){return x;});
