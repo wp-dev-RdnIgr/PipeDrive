@@ -25,9 +25,12 @@ function leaveConfirm(action){
     }
     var pending=_leaveAfter;_leaveAfter=null;
     var p=presets.find(function(x){return x.id===_activePresetId;});if(!p){if(pending)pending();return;}
-    var payload={id:p.id,name:p.name,icon:p.icon||'',description:p.description||'',filters:collectConditionsSafe(),enhanced:!!p.enhanced,funnelStages:p.funnelStages||null,columns:p.columns||null};
+    var filters=collectConditionsSafe();
+    var payload={id:p.id,name:p.name,icon:p.icon||'',description:p.description||'',filters:filters,enhanced:!!p.enhanced,funnelStages:p.funnelStages||null,columns:p.columns||null};
     google.script.run.withSuccessHandler(function(r){
       if(r&&r.error){toast(r.error,'error');return;}
+      p.filters=filters;p.unified=true;p.andConditions=[];p.orConditions=[];p.sheetFilters=null;
+      if(reportStates[p.id])reportStates[p.id].filters=filters;
       snapshotFilters();refreshPresetsFromDB();
       toast('Звіт збережено','success');
       if(pending)pending();
@@ -357,9 +360,11 @@ function _applyPresetInternal(id){
   window._presetOrConditions=pr.orConditions||[];
   window._presetColumns=pr.columns||null;
   window._presetSheetFilters=pr.sheetFilters||null;
-  // Unified presets (saved via UI) rely on `filters` only. Legacy ones
-  // still use andConditions + orConditions from the hardcoded Config.
-  if(pr.unified||(pr.filters&&pr.filters.length)){
+  // A preset is considered "saved via UI" if it has either the unified
+  // flag or a non-empty filters array. In both cases `filters` is the
+  // authoritative source; legacy andConditions/orConditions are ignored.
+  var hasSavedFilters=Array.isArray(pr.filters)&&pr.filters.length>0;
+  if(pr.unified||hasSavedFilters){
     (pr.filters||[]).forEach(function(f){addFilterRowWithData(f);});
   }else{
     if(pr.andConditions)pr.andConditions.forEach(function(f){addFilterRowWithData(f);});
@@ -470,6 +475,10 @@ function savePresetChanges(){
   google.script.run.withSuccessHandler(function(r){
     btn.disabled=false;btn.textContent='Зберегти зміни';
     if(r&&r.error){toast(r.error,'error');return;}
+    // Keep the in-memory preset + session cache aligned with what we just
+    // wrote: switching away and back must not restore stale legacy filters.
+    p.filters=filters;p.unified=true;p.andConditions=[];p.orConditions=[];p.sheetFilters=null;
+    if(reportStates[p.id])reportStates[p.id].filters=filters;
     snapshotFilters();
     refreshPresetsFromDB();
     toast('Звіт збережено','success');
