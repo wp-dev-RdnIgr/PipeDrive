@@ -212,31 +212,25 @@ function buildReportFromDB(filters, groupBy) {
   try {
     console.log('FILTERS:', JSON.stringify(filters));
     var where = [];
-    var productFilter = null;
     if (filters && filters.length) {
       filters.forEach(function(f) {
-        // Special: product_name — use JOIN with deal_products
-        if (f.field === 'product_name' || f.field === 'deal_product') {
-          productFilter = f.value;
-          return;
-        }
-        if (f.op === '=') where.push('d.' + f.field + " = '" + String(f.value).replace(/'/g,"''") + "'");
-        else if (f.op === '!=') where.push('d.' + f.field + " != '" + String(f.value).replace(/'/g,"''") + "'");
-        else if (f.op === '>=') where.push('d.' + f.field + " >= '" + f.value + "'");
+        // Legacy alias: some clients still send 'deal_product'; both map to
+        // the denormalized deals.product_name column.
+        var field = (f.field === 'deal_product') ? 'product_name' : f.field;
+        if (f.op === '=') where.push('d.' + field + " = '" + String(f.value).replace(/'/g,"''") + "'");
+        else if (f.op === '!=') where.push('d.' + field + " != '" + String(f.value).replace(/'/g,"''") + "'");
+        else if (f.op === '>=') where.push('d.' + field + " >= '" + f.value + "'");
         else if (f.op === '<=') {
           // For date-only values on timestamp columns, include the whole day.
           var dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(String(f.value));
-          if (dateOnly) where.push('d.' + f.field + " < ('" + f.value + "'::date + INTERVAL '1 day')");
-          else where.push('d.' + f.field + " <= '" + f.value + "'");
+          if (dateOnly) where.push('d.' + field + " < ('" + f.value + "'::date + INTERVAL '1 day')");
+          else where.push('d.' + field + " <= '" + f.value + "'");
         }
-        else if (f.op === 'in') where.push('d.' + f.field + " IN (" + f.value.join(',') + ")");
-        else if (f.op === 'contains') where.push('d.' + f.field + " ILIKE '%" + String(f.value).replace(/'/g,"''") + "%'");
-        else if (f.op === 'is null') where.push('d.' + f.field + " IS NULL");
-        else if (f.op === 'is not null') where.push('d.' + f.field + " IS NOT NULL");
+        else if (f.op === 'in') where.push('d.' + field + " IN (" + f.value.join(',') + ")");
+        else if (f.op === 'contains') where.push('d.' + field + " ILIKE '%" + String(f.value).replace(/'/g,"''") + "%'");
+        else if (f.op === 'is null') where.push('d.' + field + " IS NULL");
+        else if (f.op === 'is not null') where.push('d.' + field + " IS NOT NULL");
       });
-    }
-    if (productFilter) {
-      where.push("EXISTS (SELECT 1 FROM pipedrive.deal_products dp WHERE dp.deal_id = d.id AND dp.name = '" + String(productFilter).replace(/'/g,"''") + "')");
     }
     var whereStr = where.length ? ' WHERE ' + where.join(' AND ') : '';
     var sql = "SELECT d.*, s.name as stage_name, p.name as pipeline_name FROM pipedrive.deals d LEFT JOIN pipedrive.stages s ON d.stage_id=s.id LEFT JOIN pipedrive.pipelines p ON d.pipeline_id=p.id" + whereStr + " ORDER BY d.add_time DESC";
