@@ -174,7 +174,7 @@ function saveCurrentState(){
 function restoreState(id){
   var state=reportStates[id||'_none'];if(!state)return false;
   document.getElementById('filter-rows').innerHTML='';
-  (state.filters||[]).forEach(addFilterRowWithData);
+  mergeDateRanges(state.filters||[]).forEach(addFilterRowWithData);
   var gb=document.getElementById('group-by');if(gb)gb.value=state.groupBy||'none';
   lastData=state.lastData||null;
   currentPage=state.currentPage||1;sortCol=state.sortCol||null;sortDir=state.sortDir||'asc';
@@ -282,7 +282,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-04-22-product-filter';
+var APP_VERSION='2026-04-22-product-coalesce';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
@@ -392,7 +392,7 @@ function _applyPresetInternal(id){
   // authoritative source; legacy andConditions/orConditions are ignored.
   var hasSavedFilters=Array.isArray(pr.filters)&&pr.filters.length>0;
   if(pr.unified||hasSavedFilters){
-    (pr.filters||[]).forEach(function(f){addFilterRowWithData(f);});
+    mergeDateRanges(pr.filters||[]).forEach(function(f){addFilterRowWithData(f);});
   }else{
     if(pr.andConditions)pr.andConditions.forEach(function(f){addFilterRowWithData(f);});
     if(pr.orConditions&&pr.orConditions.length){
@@ -686,14 +686,42 @@ function addFilterRowWithData(data){
   addFilterRow();var rows=document.querySelectorAll('.filter-row');var row=rows[rows.length-1];
   var fs=row.querySelector('.field-select');fs.value=data.field_id;fs.onchange();
   var os=row.querySelector('.operator-select');os.value=data.operator;if(os.onchange)os.onchange();
-  if(data.value===''||data.value===undefined||data.value===null)return;
   var vc=row.querySelector('.value-container');
+  // Date range: populate date-from / date-to inputs directly. data.value
+  // is the `>=` boundary, data.extra_value is the `<=` boundary (packed
+  // in mergeDateRanges on preset load).
+  var d1=vc.querySelector('.date-from'),d2=vc.querySelector('.date-to');
+  if(d1||d2){
+    if(d1&&data.value)d1.value=data.value;
+    if(d2&&data.extra_value)d2.value=data.extra_value;
+    return;
+  }
+  if(data.value===''||data.value===undefined||data.value===null)return;
   var sselEl=vc.querySelector('.ssel');
   if(sselEl&&typeof sselEl.setValue==='function'){sselEl.setValue(data.value);return;}
   var hidden=vc.querySelector('.pill-value');
   if(hidden){var btn=vc.querySelector('.pill[data-val="'+data.value+'"]');if(btn)btn.click();return;}
   var inp=vc.querySelector('select,input');
   if(inp)inp.value=data.value;
+}
+function mergeDateRanges(filters){
+  // collectConditions emits a date range as two entries (`>=` + `<=`); on
+  // load we pack them back into a single row to avoid the duplicate
+  // "Дата створення" rows that multiplied on each save/load cycle.
+  var out=[],byField={};
+  filters.forEach(function(f){
+    var fld=fields.find(function(x){return x.field_id===f.field_id;});
+    var isDate=fld&&fld.type==='date';
+    if(isDate&&(f.operator==='>='||f.operator==='<=')){
+      if(!byField[f.field_id]){
+        byField[f.field_id]={field_id:f.field_id,operator:'>=',value:'',extra_value:''};
+        out.push(byField[f.field_id]);
+      }
+      if(f.operator==='>=')byField[f.field_id].value=f.value;
+      else byField[f.field_id].extra_value=f.value;
+    }else{out.push(f);}
+  });
+  return out;
 }
 function onFieldChange(row,fs,os,vc){
   var fid=parseInt(fs.value);var field=fields.find(function(f){return f.field_id===fid;});
