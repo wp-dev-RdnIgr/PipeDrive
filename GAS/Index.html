@@ -47,19 +47,24 @@
     </section>
 
     <section id="filter-panel" class="panel">
-      <h2>Фільтри</h2>
-      <div id="filter-rows"></div>
-      <div class="filter-actions">
-        <button id="btn-add" onclick="addFilterRow()">+ Додати умову</button>
-        <div class="right-actions">
-          <button id="btn-save-preset" class="ghost" style="display:none" onclick="savePresetChanges()">Зберегти зміни</button>
-          <button id="btn-save-as" class="ghost" style="display:none" onclick="openPresetEditor(null)">Зберегти як звіт</button>
-          <select id="group-by">
-            <option value="none">Без групування</option>
-            <option value="owner">За власником</option>
-            <option value="pipeline">За воронкою</option>
-          </select>
-          <button id="btn-run" class="primary" onclick="runReport()">Побудувати звіт</button>
+      <div class="panel-head" onclick="toggleFilters()">
+        <h2>Фільтри</h2>
+        <span class="panel-chevron" id="filter-chevron" aria-hidden="true"></span>
+      </div>
+      <div id="filter-body">
+        <div id="filter-rows"></div>
+        <div class="filter-actions">
+          <button id="btn-add" onclick="addFilterRow()">+ Додати умову</button>
+          <div class="right-actions">
+            <button id="btn-save-preset" class="ghost" style="display:none" onclick="savePresetChanges()">Зберегти зміни</button>
+            <button id="btn-save-as" class="ghost" style="display:none" onclick="openPresetEditor(null)">Зберегти як звіт</button>
+            <select id="group-by">
+              <option value="none">Без групування</option>
+              <option value="owner">За власником</option>
+              <option value="pipeline">За воронкою</option>
+            </select>
+            <button id="btn-run" class="primary" onclick="runReport()">Побудувати звіт</button>
+          </div>
         </div>
       </div>
     </section>
@@ -70,33 +75,41 @@
     <section id="report-section" style="display:none">
       <div id="summary-cards"></div>
       <div id="kpi-extra-cards" style="display:none"></div>
-      <div id="charts-section">
-        <div class="chart-row">
-          <div class="chart-box full" id="chart-funnel" style="display:none"></div>
+      <nav class="sub-tabs" id="report-subtabs">
+        <button class="sub-tab active" data-subtab="table" onclick="switchReportView('table')">Таблиця</button>
+        <button class="sub-tab" data-subtab="charts" onclick="switchReportView('charts')">Візуалізація</button>
+      </nav>
+      <div id="subview-charts" style="display:none">
+        <div id="charts-section">
+          <div class="chart-row">
+            <div class="chart-box full" id="chart-funnel" style="display:none"></div>
+          </div>
+          <div class="chart-row">
+            <div class="chart-box full" id="chart-loss-reasons" style="display:none"></div>
+          </div>
+          <div class="chart-row">
+            <div class="chart-box full" id="chart-monthly-trend" style="display:none"></div>
+          </div>
+          <div class="chart-row">
+            <div class="chart-box full" id="chart-conv-manager" style="display:none"></div>
+          </div>
+          <div class="chart-row">
+            <div class="chart-box full" id="chart-heatmap" style="display:none"></div>
+          </div>
+          <div class="chart-row"><div class="chart-box" id="chart-owners"></div><div class="chart-box" id="chart-months"></div></div>
+          <div class="chart-row"><div class="chart-box" id="chart-pipelines"></div></div>
         </div>
-        <div class="chart-row">
-          <div class="chart-box full" id="chart-loss-reasons" style="display:none"></div>
-        </div>
-        <div class="chart-row">
-          <div class="chart-box full" id="chart-monthly-trend" style="display:none"></div>
-        </div>
-        <div class="chart-row">
-          <div class="chart-box full" id="chart-conv-manager" style="display:none"></div>
-        </div>
-        <div class="chart-row">
-          <div class="chart-box full" id="chart-heatmap" style="display:none"></div>
-        </div>
-        <div class="chart-row"><div class="chart-box" id="chart-owners"></div><div class="chart-box" id="chart-months"></div></div>
-        <div class="chart-row"><div class="chart-box" id="chart-pipelines"></div></div>
       </div>
-      <div id="group-tables"></div>
-      <div class="table-wrap">
-        <div class="table-head">
-          <span class="title">Угоди</span>
-          <span class="count-badge" id="table-count">0</span>
+      <div id="subview-table">
+        <div id="group-tables"></div>
+        <div class="table-wrap">
+          <div class="table-head">
+            <span class="title">Угоди</span>
+            <span class="count-badge" id="table-count">0</span>
+          </div>
+          <div class="table-scroll"><table id="deals-table"><thead id="deals-thead"></thead><tbody id="deals-tbody"></tbody></table></div>
+          <div class="pagination" id="pagination"></div>
         </div>
-        <div class="table-scroll"><table id="deals-table"><thead id="deals-thead"></thead><tbody id="deals-tbody"></tbody></table></div>
-        <div class="pagination" id="pagination"></div>
       </div>
     </section>
     </main>

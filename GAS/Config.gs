@@ -183,18 +183,17 @@ var PRESET_REPORTS = [
       {field:'stage_id',op:'in',value:[14,36,47]}
     ],
     columns:[
-      {key:'label',label:'Країна'},
-      {key:'add_time',label:'Дата ліда',date:true},
-      {key:'org_name',label:'Сайт компанії'},
-      {key:'product_name',label:'Назва товару'},
-      {key:'c_utm_medium',label:'Канал (Utm Medium)'},
-      {key:'owner_name',label:'Менеджер'},
-      {key:'stage_name',label:'Етап'},
-      {key:'pipeline_name',label:'Воронка'},
-      {key:'value',label:'Сума угоди',money:true},
-      {key:'c_source_form',label:'Джерело'},
-      {key:'c_utm_campaign',label:'Utm Campaign'},
-      {key:'c_utm_source',label:'Utm Source'}
+      {key:'label',label:'Країна',lookup:12463,width:110},
+      {key:'add_time',label:'Дата ліда',date:true,width:100},
+      {key:'org_name',label:'Сайт компанії',width:180,truncate:true},
+      {key:'product_name',label:'Назва товару',width:140,truncate:true},
+      {key:'c_utm_medium',label:'Канал (Utm Medium)',width:150,truncate:true},
+      {key:'owner_name',label:'Менеджер',width:140,truncate:true},
+      {key:'stage_name',label:'Етап',width:150,truncate:true},
+      {key:'value',label:'Сума угоди',money:true,width:110},
+      {key:'c_source_form',label:'Джерело',lookup:12496,width:160,truncate:true},
+      {key:'c_utm_campaign',label:'Utm Campaign',width:140,truncate:true},
+      {key:'c_utm_source',label:'Utm Source',width:120,truncate:true}
     ]
   },
   {
@@ -236,17 +235,17 @@ var PRESET_REPORTS = [
       {field:'stage_id',op:'in',value:[41,42,43,44,46,47]}
     ],
     columns:[
-      {key:'label',label:'Країна'},
-      {key:'add_time',label:'Дата заведення ліда',date:true},
-      {key:'close_time',label:'Дата фінального статусу',date:true},
-      {key:'org_name',label:'Сайт компанії'},
-      {key:'product_name',label:'Назва товару'},
-      {key:'owner_name',label:'Менеджер'},
-      {key:'stage_name',label:'Етап'},
-      {key:'value',label:'Сума угоди',money:true},
-      {key:'c_kp_link',label:'Лінк на презентацію',link:true},
-      {key:'lost_reason',label:'Причина програшу'},
-      {key:'c_loss_comment',label:'Коментар по програшу'}
+      {key:'label',label:'Країна',lookup:12463,width:110},
+      {key:'add_time',label:'Дата заведення ліда',date:true,width:110},
+      {key:'close_time',label:'Дата фінального статусу',date:true,width:130},
+      {key:'org_name',label:'Сайт компанії',width:180,truncate:true},
+      {key:'product_name',label:'Назва товару',width:140,truncate:true},
+      {key:'owner_name',label:'Менеджер',width:140,truncate:true},
+      {key:'stage_name',label:'Етап',width:150,truncate:true},
+      {key:'value',label:'Сума угоди',money:true,width:110},
+      {key:'c_kp_link',label:'Лінк на презентацію',external_link:true,width:120},
+      {key:'lost_reason',label:'Причина програшу',width:150,truncate:true},
+      {key:'c_loss_comment',label:'Коментар по програшу',width:180,expandable:true}
     ]
   }
 ];
