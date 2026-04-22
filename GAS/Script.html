@@ -881,15 +881,14 @@ function renderReport(r){
 
 function hideEnhancedCharts(){
   document.getElementById('kpi-extra-cards').style.display='none';
-  ['chart-funnel','chart-loss-reasons','chart-monthly-trend','chart-conv-manager','chart-heatmap'].forEach(function(id){
-    document.getElementById(id).style.display='none';
+  ['chart-loss-reasons','chart-monthly-trend','chart-conv-manager','chart-heatmap'].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.style.display='none';
   });
 }
 
 function renderEnhancedCharts(deals,totals,preset){
   renderKpiExtra(deals,totals);
   google.charts.setOnLoadCallback(function(){
-    renderFunnel(deals,preset);
     renderLossReasons(deals);
     renderMonthlyTrend(deals);
     renderConvByManager(deals);
@@ -922,22 +921,6 @@ function renderKpiExtra(deals,t){
   el.style.display='grid';
 }
 
-function renderFunnel(deals,preset){
-  var box=document.getElementById('chart-funnel');
-  var stages=(preset&&preset.funnelStages)||[];
-  if(!stages.length){box.style.display='none';return;}
-  var counts={};stages.forEach(function(s){counts[s.id]={open:0,won:0,lost:0};});
-  deals.forEach(function(d){if(counts[d.stage_id])counts[d.stage_id][d.status]=(counts[d.stage_id][d.status]||0)+1;});
-  var dt=new google.visualization.DataTable();
-  dt.addColumn('string','Етап');dt.addColumn('number','Відкриті');dt.addColumn('number','Виграні');dt.addColumn('number','Програні');
-  stages.forEach(function(s){var c=counts[s.id];dt.addRow([s.name,c.open||0,c.won||0,c.lost||0]);});
-  box.innerHTML='<div class="chart-title">Воронка КП по етапах<span class="hint">де застрягли угоди</span></div><div id="chart-funnel-canvas" style="height:340px"></div>';
-  box.style.display='block';
-  new google.visualization.ColumnChart(document.getElementById('chart-funnel-canvas')).draw(dt,chartOpts({
-    isStacked:true,colors:[CHART_COLORS.primary,CHART_COLORS.success,CHART_COLORS.danger],bar:{groupWidth:'62%'},
-    hAxis:{slantedText:true,slantedTextAngle:20,textStyle:{fontSize:11,color:'#6b7280'}}
-  }));
-}
 
 var _lossDealsCache={};
 function renderLossReasons(deals){
@@ -1007,48 +990,70 @@ function renderMonthlyTrend(deals){
   }));
 }
 
-var _chartFilters={convMgr:null,heatMgr:null};
+var _chartFilters={convDim:'manager',convMgr:null,convProduct:null,convChannel:null,heatMgr:null};
+var CONV_DIMS={
+  manager:{field:'owner_name',fallback:'(не вказано)',title:'Конверсія по менеджерах',axis:'Менеджер',filterLabel:'Всі менеджери',tabLabel:'По менеджерах',stateKey:'convMgr'},
+  product:{field:'product_name',fallback:'(без товару)',title:'Конверсія по послугах',axis:'Послуга',filterLabel:'Всі послуги',tabLabel:'По послугах',stateKey:'convProduct'},
+  channel:{field:'c_utm_medium',fallback:'(без каналу)',title:'Конверсія по каналах',axis:'Канал',filterLabel:'Всі канали',tabLabel:'По каналах',stateKey:'convChannel'}
+};
 function uniqOwners(deals){
   var set={};deals.forEach(function(d){var n=d.owner_name||'(не вказано)';set[n]=true;});
   return Object.keys(set).sort();
 }
-function mountMgrFilter(containerId,allMgrs,selected,onChange){
+function uniqDimValues(deals,field,fallback){
+  var set={};deals.forEach(function(d){var v=d[field]||fallback;set[v]=true;});
+  return Object.keys(set).sort();
+}
+function mountMgrFilter(containerId,allVals,selected,onChange,placeholder){
   var wrap=document.getElementById(containerId);if(!wrap)return;
   wrap.innerHTML='';
   var sel=buildSSel({
-    multi:true,placeholder:'Всі менеджери',
-    options:allMgrs.map(function(m){return {value:m,label:m};}),
+    multi:true,placeholder:placeholder||'Всі менеджери',
+    options:allVals.map(function(m){return {value:m,label:m};}),
     value:selected.join(','),onChange:onChange
   });
   sel.classList.add('ssel-chart-filter');
   wrap.appendChild(sel);
 }
 
+function switchConvDim(dim){
+  if(!CONV_DIMS[dim])return;
+  _chartFilters.convDim=dim;
+  if(lastData&&lastData.deals)renderConvByManager(lastData.deals);
+}
+
 function renderConvByManager(deals){
   var box=document.getElementById('chart-conv-manager');
-  var allMgrs=uniqOwners(deals);
-  if(_chartFilters.convMgr===null)_chartFilters.convMgr=allMgrs.slice();
-  // Drop mgrs that no longer exist in the current dataset
-  _chartFilters.convMgr=_chartFilters.convMgr.filter(function(m){return allMgrs.indexOf(m)>=0;});
-  if(!_chartFilters.convMgr.length)_chartFilters.convMgr=allMgrs.slice();
-  var filtered=deals.filter(function(d){return _chartFilters.convMgr.indexOf(d.owner_name||'(не вказано)')>=0;});
-  var byMgr={};
+  var dim=_chartFilters.convDim||'manager';
+  var cfg=CONV_DIMS[dim]||CONV_DIMS.manager;
+  var allVals=uniqDimValues(deals,cfg.field,cfg.fallback);
+  if(!allVals.length){box.style.display='none';return;}
+  var stateKey=cfg.stateKey;
+  if(_chartFilters[stateKey]==null)_chartFilters[stateKey]=allVals.slice();
+  _chartFilters[stateKey]=_chartFilters[stateKey].filter(function(v){return allVals.indexOf(v)>=0;});
+  if(!_chartFilters[stateKey].length)_chartFilters[stateKey]=allVals.slice();
+  var selected=_chartFilters[stateKey];
+  var filtered=deals.filter(function(d){return selected.indexOf(d[cfg.field]||cfg.fallback)>=0;});
+  var buckets={};
   filtered.forEach(function(d){
-    var n=d.owner_name||'(не вказано)';
-    if(!byMgr[n])byMgr[n]={total:0,won:0,lost:0,open:0};
-    byMgr[n].total++;byMgr[n][d.status]=(byMgr[n][d.status]||0)+1;
+    var k=d[cfg.field]||cfg.fallback;
+    if(!buckets[k])buckets[k]={total:0,won:0,lost:0,open:0};
+    buckets[k].total++;buckets[k][d.status]=(buckets[k][d.status]||0)+1;
   });
-  var rows=Object.keys(byMgr).map(function(k){var m=byMgr[k];m.name=k;m.winRate=m.total>0?Math.round(m.won/m.total*100):0;return m;}).sort(function(a,b){return b.total-a.total;});
-  if(!allMgrs.length){box.style.display='none';return;}
+  var rows=Object.keys(buckets).map(function(k){var m=buckets[k];m.name=k;m.winRate=m.total>0?Math.round(m.won/m.total*100):0;return m;}).sort(function(a,b){return b.total-a.total;});
   var dt=new google.visualization.DataTable();
-  dt.addColumn('string','Менеджер');dt.addColumn('number','Виграні');dt.addColumn('number','Програні');dt.addColumn('number','Відкриті');dt.addColumn({type:'string',role:'annotation'});
+  dt.addColumn('string',cfg.axis);dt.addColumn('number','Виграні');dt.addColumn('number','Програні');dt.addColumn('number','Відкриті');dt.addColumn({type:'string',role:'annotation'});
   rows.forEach(function(m){dt.addRow([m.name,m.won,m.lost,m.open,m.winRate+'%']);});
-  box.innerHTML='<div class="chart-header"><div class="chart-title">Конверсія по менеджерах<span class="hint">win-rate % над стовпчиком</span></div><div class="chart-filters" id="conv-mgr-filter"></div></div><div id="chart-mgr-canvas" style="height:380px"></div>';
+  var tabsHtml=['manager','product','channel'].map(function(d){
+    var c=CONV_DIMS[d];
+    return '<button type="button" class="chart-tab'+(d===dim?' active':'')+'" onclick="switchConvDim(\''+d+'\')">'+c.tabLabel+'</button>';
+  }).join('');
+  box.innerHTML='<div class="chart-header"><div class="chart-title">'+cfg.title+'<span class="hint">win-rate % над стовпчиком</span></div><div class="chart-filters" id="conv-mgr-filter"></div></div><nav class="chart-tabs">'+tabsHtml+'</nav><div id="chart-mgr-canvas" style="height:380px"></div>';
   box.style.display='block';
-  mountMgrFilter('conv-mgr-filter',allMgrs,_chartFilters.convMgr,function(vals){
-    _chartFilters.convMgr=vals.length?vals:allMgrs.slice();
+  mountMgrFilter('conv-mgr-filter',allVals,selected,function(vals){
+    _chartFilters[stateKey]=vals.length?vals:allVals.slice();
     renderConvByManager(deals);
-  });
+  },cfg.filterLabel);
   new google.visualization.ColumnChart(document.getElementById('chart-mgr-canvas')).draw(dt,chartOpts({
     isStacked:true,colors:[CHART_COLORS.success,CHART_COLORS.danger,CHART_COLORS.primary],
     bar:{groupWidth:'62%'},
