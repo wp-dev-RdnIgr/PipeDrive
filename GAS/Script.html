@@ -318,7 +318,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-04-22-chart-info';
+var APP_VERSION='2026-04-22-tn-trim';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
@@ -1024,14 +1024,16 @@ function hideEnhancedCharts(){
 }
 
 function renderEnhancedCharts(deals,totals,preset){
+  function hideChart(id){var el=document.getElementById(id);if(el)el.style.display='none';}
   google.charts.setOnLoadCallback(function(){
-    if(preset&&preset.funnel)renderFunnel(deals,preset);
-    else{var f=document.getElementById('chart-funnel');if(f)f.style.display='none';}
-    if(preset&&preset.avgStageTime)renderAvgStageTime(deals,preset);
-    else{var a=document.getElementById('chart-avg-stage-time');if(a)a.style.display='none';}
-    renderLossReasons(deals);
-    renderMonthlyTrend(deals);
-    renderHeatmapStageManager(deals,preset);
+    if(preset&&preset.funnel)renderFunnel(deals,preset);else hideChart('chart-funnel');
+    if(preset&&preset.avgStageTime)renderAvgStageTime(deals,preset);else hideChart('chart-avg-stage-time');
+    // lossReasons / monthlyTrend / heatmap за замовчуванням увімкнені для
+    // enhanced-пресетів. Пресет може явно вимкнути (напр. Тендери:
+    // monthlyTrend:false, heatmap:false), тоді чарт ховається.
+    if(!preset||preset.lossReasons!==false)renderLossReasons(deals);else hideChart('chart-loss-reasons');
+    if(!preset||preset.monthlyTrend!==false)renderMonthlyTrend(deals);else hideChart('chart-monthly-trend');
+    if(!preset||preset.heatmap!==false)renderHeatmapStageManager(deals,preset);else hideChart('chart-heatmap');
   });
 }
 

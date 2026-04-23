@@ -206,6 +206,8 @@ var PRESET_REPORTS = [
     enhanced:true,
     funnel:true,
     avgStageTime:true,
+    monthlyTrend:false,
+    heatmap:false,
     chartMode:'count',
     funnelStages:[
       {id:41,name:'Підготовка пропозицій'},
