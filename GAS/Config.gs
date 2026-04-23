@@ -162,6 +162,7 @@ var PRESET_REPORTS = [
     icon:'СП',
     description:'Угоди на стадії старту проекту у всіх воронках',
     enhanced:false,
+    chartMode:'count',
     andConditions:[
       {field_id:12463,operator:'IS NOT NULL',value:''},
       {field_id:12465,operator:'>=',value:''},
