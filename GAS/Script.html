@@ -318,7 +318,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-04-22-tn-charts';
+var APP_VERSION='2026-04-22-tn-trim';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
@@ -1024,15 +1024,33 @@ function hideEnhancedCharts(){
 }
 
 function renderEnhancedCharts(deals,totals,preset){
+  function hideChart(id){var el=document.getElementById(id);if(el)el.style.display='none';}
   google.charts.setOnLoadCallback(function(){
-    if(preset&&preset.funnel)renderFunnel(deals,preset);
-    else{var f=document.getElementById('chart-funnel');if(f)f.style.display='none';}
-    if(preset&&preset.avgStageTime)renderAvgStageTime(deals,preset);
-    else{var a=document.getElementById('chart-avg-stage-time');if(a)a.style.display='none';}
-    renderLossReasons(deals);
-    renderMonthlyTrend(deals);
-    renderHeatmapStageManager(deals,preset);
+    if(preset&&preset.funnel)renderFunnel(deals,preset);else hideChart('chart-funnel');
+    if(preset&&preset.avgStageTime)renderAvgStageTime(deals,preset);else hideChart('chart-avg-stage-time');
+    // lossReasons / monthlyTrend / heatmap за замовчуванням увімкнені для
+    // enhanced-пресетів. Пресет може явно вимкнути (напр. Тендери:
+    // monthlyTrend:false, heatmap:false), тоді чарт ховається.
+    if(!preset||preset.lossReasons!==false)renderLossReasons(deals);else hideChart('chart-loss-reasons');
+    if(!preset||preset.monthlyTrend!==false)renderMonthlyTrend(deals);else hideChart('chart-monthly-trend');
+    if(!preset||preset.heatmap!==false)renderHeatmapStageManager(deals,preset);else hideChart('chart-heatmap');
   });
+}
+
+// Опис для кожного чарту: мета / дані / розрахунок. Виводиться
+// через ℹ️-бейдж у заголовку; менеджер може навести курсор і
+// прочитати, що саме чарт показує й звідки беруться числа.
+var CHART_INFO={
+  funnel:'Мета: побачити, на якій стадії воронки застряють угоди.\n\nДані: поточний stage_id кожної угоди + status (open / won / lost).\n\nРозрахунок: групуємо угоди пресета за поточним етапом, всередині ділимо на 3 серії (Відкриті / Виграні / Програні) і малюємо stacked bar.',
+  avgStage:'Мета: помітити стадії, де угоди залежуються найдовше.\n\nДані: stage_change_time (час останньої зміни стадії) + close_time для закритих.\n\nРозрахунок: для кожної угоди вважаємо (close_time − stage_change_time) якщо закрита, або (now − stage_change_time) якщо відкрита. Усереднюємо в межах поточної стадії. У дужках — к-ть угод, що пішли у розрахунок.\n\nОбмеження: у БД нема історії переходів між стадіями, тож враховуються лише угоди, які ЗАРАЗ у цій стадії або ЗАКРИЛИСЬ на ній. Угоди, що вже минули цю стадію раніше, у середньому не беруть участі.',
+  lossReasons:'Мета: зрозуміти, чому найчастіше програємо і де зосередити роботу над причинами.\n\nДані: lost_reason (причина програшу) та c_loss_comment (коментар) кожної програної угоди.\n\nРозрахунок: беремо лише status=lost, групуємо по lost_reason, рахуємо частку від загального числа програних. Клік по сектору відкриває коментарі саме цієї причини.',
+  monthlyTrend:'Мета: побачити тренд — чи зростає потік угод, як змінюється виграш/програш від місяця до місяця.\n\nДані: add_time (для лінії «Створено»), close_time / status (для «Виграно» і «Програно»).\n\nРозрахунок: групуємо угоди по YYYY-MM від add_time. Три лінії — створено, виграно, програно — точка на кожен місяць.',
+  convChart:'Мета: у режимі Кількість — розподіл навантаження (хто / яка послуга / канал / джерело веде скільки угод). У режимі Конверсія — win-rate тих самих розрізів.\n\nДані: owner_name / products[] / c_utm_medium / c_source_form + status.\n\nРозрахунок: групуємо угоди по обраному вимірі (таби знизу). Угода з кількома товарами рахується у КОЖНОМУ стовпчику. У «Кількості» — просто total, над стовпчиком кількість. У «Конверсії» — stacked won/lost/open і win-rate % над стовпчиком.',
+  heatmap:'Мета: одним поглядом побачити навантаження — хто з менеджерів веде скільки угод на якій стадії.\n\nДані: owner_name + stage_id угод пресета.\n\nРозрахунок: 2D-матриця — рядки менеджери, стовпці стадії воронки пресета, у клітинці кількість угод. Насиченість клітинки пропорційна значенню.'
+};
+function chartInfoBadge(key){
+  var txt=CHART_INFO[key];if(!txt)return '';
+  return ' <span class="chart-info-icon" tabindex="0" title="'+escAttr(txt)+'" aria-label="Довідка по графіку">i</span>';
 }
 
 // Воронка по стадіях: open/won/lost стек на кожній стадії з funnelStages
@@ -1047,7 +1065,7 @@ function renderFunnel(deals,preset){
   dt.addColumn('string','Етап');dt.addColumn('number','Відкриті');dt.addColumn('number','Виграні');dt.addColumn('number','Програні');
   stages.forEach(function(s){var c=counts[s.id];dt.addRow([s.name,c.open||0,c.won||0,c.lost||0]);});
   var name=preset&&preset.name?preset.name:'воронці';
-  box.innerHTML='<div class="chart-title">Воронка '+esc(name)+' по етапах<span class="hint">де застрягли угоди</span></div><div id="chart-funnel-canvas" style="height:340px"></div>';
+  box.innerHTML='<div class="chart-title">Воронка '+esc(name)+' по етапах<span class="hint">де застрягли угоди</span>'+chartInfoBadge('funnel')+'</div><div id="chart-funnel-canvas" style="height:340px"></div>';
   box.style.display='block';
   new google.visualization.ColumnChart(document.getElementById('chart-funnel-canvas')).draw(dt,chartOpts({
     isStacked:true,colors:[CHART_COLORS.primary,CHART_COLORS.success,CHART_COLORS.danger],bar:{groupWidth:'62%'},
@@ -1084,7 +1102,7 @@ function renderAvgStageTime(deals,preset){
     var val=Math.round(avg*10)/10;
     dt.addRow([s.name+' ('+cnts[s.id]+')',val,val?String(val)+' д':'—']);
   });
-  box.innerHTML='<div class="chart-title">Швидкість проходження стадій<span class="hint">середній час у поточній стадії, у дужках — к-ть угод</span></div><div id="chart-avg-stage-canvas" style="height:320px"></div>';
+  box.innerHTML='<div class="chart-title">Швидкість проходження стадій<span class="hint">середній час у поточній стадії, у дужках — к-ть угод</span>'+chartInfoBadge('avgStage')+'</div><div id="chart-avg-stage-canvas" style="height:320px"></div>';
   box.style.display='block';
   new google.visualization.BarChart(document.getElementById('chart-avg-stage-canvas')).draw(dt,chartOpts({
     colors:[CHART_COLORS.warning],bar:{groupWidth:'68%'},legend:{position:'none'},
@@ -1110,7 +1128,7 @@ function renderLossReasons(deals){
   });
   var dt=new google.visualization.DataTable();dt.addColumn('string','Причина');dt.addColumn('number','Угод');
   Object.keys(byReason).forEach(function(k){dt.addRow([k,byReason[k]]);});
-  box.innerHTML='<div class="chart-title">Причини програшу<span class="hint">клік по сектору — коментарі</span></div><div id="chart-loss-canvas" style="height:420px;cursor:pointer"></div>';
+  box.innerHTML='<div class="chart-title">Причини програшу<span class="hint">клік по сектору — коментарі</span>'+chartInfoBadge('lossReasons')+'</div><div id="chart-loss-canvas" style="height:420px;cursor:pointer"></div>';
   box.style.display='block';
   var chart=new google.visualization.PieChart(document.getElementById('chart-loss-canvas'));
   chart.draw(dt,chartOpts({
@@ -1155,7 +1173,7 @@ function renderMonthlyTrend(deals){
   var dt=new google.visualization.DataTable();
   dt.addColumn('string','Місяць');dt.addColumn('number','Створено');dt.addColumn('number','Виграно');dt.addColumn('number','Програно');
   keys.forEach(function(k){var m=months[k];dt.addRow([k,m.created,m.won,m.lost]);});
-  box.innerHTML='<div class="chart-title">Динаміка КП по місяцях<span class="hint">створено vs виграно vs програно</span></div><div id="chart-monthly-canvas" style="height:340px"></div>';
+  box.innerHTML='<div class="chart-title">Динаміка угод по місяцях<span class="hint">створено vs виграно vs програно</span>'+chartInfoBadge('monthlyTrend')+'</div><div id="chart-monthly-canvas" style="height:340px"></div>';
   box.style.display='block';
   new google.visualization.LineChart(document.getElementById('chart-monthly-canvas')).draw(dt,chartOpts({
     colors:[CHART_COLORS.gray,CHART_COLORS.success,CHART_COLORS.danger],
@@ -1278,7 +1296,7 @@ function renderConvByManager(deals){
       '<button type="button" class="chart-mode-btn'+(mode==='count'?' active':'')+'" onclick="switchConvMode(\'count\')">Кількість</button>'+
       '<button type="button" class="chart-mode-btn'+(mode==='conversion'?' active':'')+'" onclick="switchConvMode(\'conversion\')">Конверсія</button>'+
     '</div>';
-  box.innerHTML='<div class="chart-header"><div class="chart-title">'+titlePrefix+' '+titleSuffix+'<span class="hint">'+hintText+'</span></div>'+modeToggle+'<div class="chart-filters" id="conv-mgr-filter"></div></div><nav class="chart-tabs">'+tabsHtml+'</nav><div id="chart-mgr-canvas" style="height:380px"></div>';
+  box.innerHTML='<div class="chart-header"><div class="chart-title">'+titlePrefix+' '+titleSuffix+'<span class="hint">'+hintText+'</span>'+chartInfoBadge('convChart')+'</div>'+modeToggle+'<div class="chart-filters" id="conv-mgr-filter"></div></div><nav class="chart-tabs">'+tabsHtml+'</nav><div id="chart-mgr-canvas" style="height:380px"></div>';
   box.style.display='block';
   mountMgrFilter('conv-mgr-filter',allVals,selected,function(vals){
     _chartFilters[stateKey]=vals.length?vals:allVals.slice();
@@ -1306,7 +1324,7 @@ function renderHeatmapStageManager(deals,preset){
     return tb-ta;
   });
   var max=0;mgrList.forEach(function(m){stages.forEach(function(s){var v=mgrs[m][s.id]||0;if(v>max)max=v;});});
-  var html='<div class="chart-header"><div class="chart-title">Менеджер × Етап<span class="hint">де кладовища угод</span></div><div class="chart-filters" id="heat-mgr-filter"></div></div><div style="overflow-x:auto"><table class="heatmap-table"><thead><tr><th>Менеджер</th>';
+  var html='<div class="chart-header"><div class="chart-title">Менеджер × Етап<span class="hint">де кладовища угод</span>'+chartInfoBadge('heatmap')+'</div><div class="chart-filters" id="heat-mgr-filter"></div></div><div style="overflow-x:auto"><table class="heatmap-table"><thead><tr><th>Менеджер</th>';
   stages.forEach(function(s){html+='<th>'+esc(s.name)+'</th>';});html+='<th>Всього</th></tr></thead><tbody>';
   if(!mgrList.length){html+='<tr><td colspan="'+(stages.length+2)+'" style="padding:20px;text-align:center;color:var(--gray-400)">Немає даних для вибраних менеджерів</td></tr>';}
   mgrList.forEach(function(m){
