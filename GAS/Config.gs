@@ -203,8 +203,10 @@ var PRESET_REPORTS = [
     name:'Тендери',
     icon:'ТН',
     description:'Тендерні угоди: воронка, причини програшу, коментарі',
-    enhanced:false,
-    hideCharts:true,
+    enhanced:true,
+    funnel:true,
+    avgStageTime:true,
+    chartMode:'count',
     funnelStages:[
       {id:41,name:'Підготовка пропозицій'},
       {id:42,name:'Презентація пропозицій'},

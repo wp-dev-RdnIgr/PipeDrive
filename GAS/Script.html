@@ -318,7 +318,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-04-22-sp-count-mode';
+var APP_VERSION='2026-04-22-tn-charts';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
@@ -1018,17 +1018,81 @@ function applyChartsVisibility(preset){
 
 function hideEnhancedCharts(){
   // chart-conv-manager intentionally NOT hidden — it's now a global chart.
-  ['chart-loss-reasons','chart-monthly-trend','chart-heatmap'].forEach(function(id){
+  ['chart-funnel','chart-avg-stage-time','chart-loss-reasons','chart-monthly-trend','chart-heatmap'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display='none';
   });
 }
 
 function renderEnhancedCharts(deals,totals,preset){
   google.charts.setOnLoadCallback(function(){
+    if(preset&&preset.funnel)renderFunnel(deals,preset);
+    else{var f=document.getElementById('chart-funnel');if(f)f.style.display='none';}
+    if(preset&&preset.avgStageTime)renderAvgStageTime(deals,preset);
+    else{var a=document.getElementById('chart-avg-stage-time');if(a)a.style.display='none';}
     renderLossReasons(deals);
     renderMonthlyTrend(deals);
     renderHeatmapStageManager(deals,preset);
   });
+}
+
+// Воронка по стадіях: open/won/lost стек на кожній стадії з funnelStages
+// пресета. Показує, де застряють угоди у воронці пресета.
+function renderFunnel(deals,preset){
+  var box=document.getElementById('chart-funnel');if(!box)return;
+  var stages=(preset&&preset.funnelStages)||[];
+  if(!stages.length){box.style.display='none';return;}
+  var counts={};stages.forEach(function(s){counts[s.id]={open:0,won:0,lost:0};});
+  deals.forEach(function(d){if(counts[d.stage_id])counts[d.stage_id][d.status]=(counts[d.stage_id][d.status]||0)+1;});
+  var dt=new google.visualization.DataTable();
+  dt.addColumn('string','Етап');dt.addColumn('number','Відкриті');dt.addColumn('number','Виграні');dt.addColumn('number','Програні');
+  stages.forEach(function(s){var c=counts[s.id];dt.addRow([s.name,c.open||0,c.won||0,c.lost||0]);});
+  var name=preset&&preset.name?preset.name:'воронці';
+  box.innerHTML='<div class="chart-title">Воронка '+esc(name)+' по етапах<span class="hint">де застрягли угоди</span></div><div id="chart-funnel-canvas" style="height:340px"></div>';
+  box.style.display='block';
+  new google.visualization.ColumnChart(document.getElementById('chart-funnel-canvas')).draw(dt,chartOpts({
+    isStacked:true,colors:[CHART_COLORS.primary,CHART_COLORS.success,CHART_COLORS.danger],bar:{groupWidth:'62%'},
+    hAxis:{slantedText:true,slantedTextAngle:20,textStyle:{fontSize:11,color:'#6b7280'}}
+  }));
+}
+
+// Швидкість проходження стадій: для кожної стадії пресета — середній
+// час, який угода провела у ній. Використовуємо stage_change_time:
+// для відкритих = now - stage_change_time; для закритих = close_time
+// - stage_change_time. Це показує «де саме час простоює».
+function renderAvgStageTime(deals,preset){
+  var box=document.getElementById('chart-avg-stage-time');if(!box)return;
+  var stages=(preset&&preset.funnelStages)||[];
+  if(!stages.length){box.style.display='none';return;}
+  var sums={},cnts={};stages.forEach(function(s){sums[s.id]=0;cnts[s.id]=0;});
+  var now=Date.now();
+  deals.forEach(function(d){
+    if(!(d.stage_id in sums))return;
+    var scRaw=d.stage_change_time||d.add_time;if(!scRaw)return;
+    var sc=new Date(scRaw).getTime();if(!sc)return;
+    var endRaw=(d.status!=='open')?(d.close_time||d.won_time||d.lost_time):null;
+    var end=endRaw?new Date(endRaw).getTime():now;
+    if(!end||end<sc)return;
+    var days=(end-sc)/86400000;
+    sums[d.stage_id]+=days;cnts[d.stage_id]+=1;
+  });
+  var hasData=stages.some(function(s){return cnts[s.id]>0;});
+  if(!hasData){box.style.display='none';return;}
+  var dt=new google.visualization.DataTable();
+  dt.addColumn('string','Етап');dt.addColumn('number','Середньо днів');dt.addColumn({type:'string',role:'annotation'});
+  stages.forEach(function(s){
+    var avg=cnts[s.id]?sums[s.id]/cnts[s.id]:0;
+    var val=Math.round(avg*10)/10;
+    dt.addRow([s.name+' ('+cnts[s.id]+')',val,val?String(val)+' д':'—']);
+  });
+  box.innerHTML='<div class="chart-title">Швидкість проходження стадій<span class="hint">середній час у поточній стадії, у дужках — к-ть угод</span></div><div id="chart-avg-stage-canvas" style="height:320px"></div>';
+  box.style.display='block';
+  new google.visualization.BarChart(document.getElementById('chart-avg-stage-canvas')).draw(dt,chartOpts({
+    colors:[CHART_COLORS.warning],bar:{groupWidth:'68%'},legend:{position:'none'},
+    hAxis:{textStyle:{fontSize:11,color:'#6b7280'},format:'#.# д'},
+    vAxis:{textStyle:{fontSize:12,color:'#374151'}},
+    annotations:{alwaysOutside:true,textStyle:{fontSize:11,color:'#374151',bold:true}},
+    chartArea:{left:160,right:48,top:20,bottom:40}
+  }));
 }
 
 
@@ -1100,7 +1164,12 @@ function renderMonthlyTrend(deals){
   }));
 }
 
-var _chartFilters={convDim:'manager',convMgr:null,convProduct:null,convChannel:null,convSource:null,heatMgr:null};
+var _chartFilters={convDim:'manager',convMode:null,convMgr:null,convProduct:null,convChannel:null,convSource:null,heatMgr:null};
+function switchConvMode(mode){
+  if(mode!=='count'&&mode!=='conversion')return;
+  _chartFilters.convMode=mode;
+  if(lastData&&lastData.deals)renderConvByManager(lastData.deals);
+}
 var CONV_DIMS={
   manager:{field:'owner_name',fallback:'(не вказано)',title:'Конверсія по менеджерах',axis:'Менеджер',filterLabel:'Всі менеджери',tabLabel:'По менеджерах',stateKey:'convMgr'},
   product:{field:'product_name',fallback:'(без товару)',title:'Конверсія по послугах',axis:'Послуга',filterLabel:'Всі послуги',tabLabel:'По послугах',stateKey:'convProduct'},
@@ -1163,7 +1232,8 @@ function renderConvByManager(deals){
   // не несе сенсу). За замовчуванням — стек win/lost/open + win-rate %.
   var id=getActivePresetId();
   var preset=id?presets.find(function(p){return p.id===id;}):null;
-  var mode=(preset&&preset.chartMode)||'conversion';
+  // Пріоритет: сесійний вибір користувача → дефолт із пресета → 'conversion'.
+  var mode=_chartFilters.convMode||(preset&&preset.chartMode)||'conversion';
   // Побудова множини унікальних значень dim через dealDimValues, щоб
   // чарт послуг бачив усі товари з кожної угоди (а не лише перший).
   var allSet={};
@@ -1203,7 +1273,12 @@ function renderConvByManager(deals){
   var titlePrefix=mode==='count'?'Кількість угод':'Конверсія';
   var titleSuffix={manager:'по менеджерах',product:'по послугах',channel:'по каналах',source:'по джерелах'}[dim];
   var hintText=mode==='count'?'кількість над стовпчиком':'win-rate % над стовпчиком';
-  box.innerHTML='<div class="chart-header"><div class="chart-title">'+titlePrefix+' '+titleSuffix+'<span class="hint">'+hintText+'</span></div><div class="chart-filters" id="conv-mgr-filter"></div></div><nav class="chart-tabs">'+tabsHtml+'</nav><div id="chart-mgr-canvas" style="height:380px"></div>';
+  var modeToggle=
+    '<div class="chart-mode-toggle">'+
+      '<button type="button" class="chart-mode-btn'+(mode==='count'?' active':'')+'" onclick="switchConvMode(\'count\')">Кількість</button>'+
+      '<button type="button" class="chart-mode-btn'+(mode==='conversion'?' active':'')+'" onclick="switchConvMode(\'conversion\')">Конверсія</button>'+
+    '</div>';
+  box.innerHTML='<div class="chart-header"><div class="chart-title">'+titlePrefix+' '+titleSuffix+'<span class="hint">'+hintText+'</span></div>'+modeToggle+'<div class="chart-filters" id="conv-mgr-filter"></div></div><nav class="chart-tabs">'+tabsHtml+'</nav><div id="chart-mgr-canvas" style="height:380px"></div>';
   box.style.display='block';
   mountMgrFilter('conv-mgr-filter',allVals,selected,function(vals){
     _chartFilters[stateKey]=vals.length?vals:allVals.slice();
