@@ -332,7 +332,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-04-27-reload-on-save';
+var APP_VERSION='2026-04-27-inplace-save';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
@@ -567,10 +567,20 @@ function savePresetChanges(){
   google.script.run.withSuccessHandler(function(r){
     btn.disabled=false;btn.textContent='Зберегти зміни';
     if(r&&r.error){toast(r.error,'error');return;}
-    // Перезавантажуємо сторінку після збереження — щоб sidebar
-    // та активний пресет однозначно відображали свіжі дані з БД.
+    // Локально вирівнюємо стан — щоб switchaway-and-back не повертав
+    // legacy-фільтри з кеша reportStates.
+    p.filters=filters;p.unified=true;p.andConditions=[];p.orConditions=[];p.sheetFilters=null;
+    if(reportStates[p.id])reportStates[p.id].filters=filters;
+    snapshotFilters();
     toast('Звіт збережено','success');
-    setTimeout(function(){location.reload();},700);
+    // In-place refresh: дочекатись DB і пересобрати sidebar + reapply
+    // поточний пресет. Без location.reload() щоб не отримати білу
+    // сторінку в Apps Script iframe.
+    refreshPresetsFromDB(function(){
+      renderPresetList();
+      updateReportHeader();
+      _applyPresetInternal(p.id);
+    });
   }).withFailureHandler(function(e){
     btn.disabled=false;btn.textContent='Зберегти зміни';toast(e.message||String(e),'error');
   }).saveCustomPreset(payload);
@@ -627,13 +637,17 @@ function savePresetFromEditor(){
       reportStates[id]=reportStates[_editingPresetId];delete reportStates[_editingPresetId];
       presets=presets.filter(function(p){return p.id!==_editingPresetId;});
     }
-    // Жорстко перезавантажуємо сторінку після збереження: на старті
-    // ініціалізація сама підтягне свіжий список пресетів із БД і
-    // встановить активним щойно створений пресет. Хешем зберігаємо
-    // вибір — після reload routeFromHash відкриє саме його.
-    setHash('report/'+id);
     toast(isDraft?'Звіт створено':'Звіт оновлено','success');
-    setTimeout(function(){location.reload();},700);
+    // location.reload() в iframe-сендбоксі Apps Script іноді віддає
+    // білу сторінку. Робимо in-place оновлення: дочекатись refresh з
+    // БД, оновити sidebar і відкрити щойно збережений пресет.
+    refreshPresetsFromDB(function(){
+      _activePresetId=id;
+      setHash('report/'+id);
+      renderPresetList();
+      updateReportHeader();
+      _applyPresetInternal(id);
+    });
   }).withFailureHandler(function(e){
     btn.disabled=false;btn.textContent='Зберегти';err.textContent=e.message||String(e);
   }).saveCustomPreset(payload);
