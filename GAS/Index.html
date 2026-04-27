@@ -200,27 +200,15 @@
     </div>
   </div>
 
-  <!-- Refresh-Data Modal (period selector + trigger) -->
+  <!-- Refresh-Data Modal (year multiselect) -->
   <div id="refresh-modal" class="modal" style="display:none">
     <div class="modal-content" style="max-width:480px;text-align:left">
       <h2 style="text-align:center;margin-bottom:8px">Оновлення даних з Pipedrive</h2>
-      <p style="color:var(--gray-500);font-size:13px;margin-bottom:14px;text-align:center">Оберіть період, за який підтягнути актуальні угоди.</p>
+      <p style="color:var(--gray-500);font-size:13px;margin-bottom:14px;text-align:center">Оберіть один чи кілька років, за які підтягнути актуальні угоди.</p>
       <label class="form-label">Період</label>
-      <select id="refresh-period" class="form-input" onchange="onRefreshPeriodChange()">
-        <option value="thisYear">Цей рік</option>
-        <option value="lastYear">Минулий рік</option>
-        <option value="last30">Останні 30 днів</option>
-        <option value="last90">Останні 90 днів</option>
-        <option value="custom">Власний діапазон</option>
-      </select>
-      <div id="refresh-custom-range" style="display:none;margin-top:10px">
-        <label class="form-label">Від — До</label>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="date" id="date-from" class="date-input form-input" style="flex:1" />
-          <span style="color:var(--gray-400)">—</span>
-          <input type="date" id="date-to" class="date-input form-input" style="flex:1" />
-        </div>
-      </div>
+      <div id="refresh-years-mount"></div>
+      <input type="hidden" id="date-from" />
+      <input type="hidden" id="date-to" />
       <div id="refresh-summary" style="background:var(--gray-50);border-radius:6px;padding:10px 12px;margin:12px 0;border:1px solid var(--gray-100);font-size:12px;color:var(--gray-700)"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
         <button class="ghost" onclick="document.getElementById('refresh-modal').style.display='none'">Скасувати</button>

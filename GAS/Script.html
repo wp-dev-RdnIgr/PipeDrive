@@ -230,41 +230,55 @@ document.addEventListener('DOMContentLoaded',function(){
   var y=new Date().getFullYear();
   document.getElementById('date-from').value=y+'-01-01';
   document.getElementById('date-to').value=y+'-12-31';
-  applyRefreshPeriod();
 });
 
 // ===== REFRESH-DATA MODAL =====
-// Швидкі періоди для оновлення даних. Зберігаємо у date-from/date-to,
-// бо backend вже їх читає; user бачить читабельні опції замість «дві
-// дати, без контексту».
-function refreshPeriodToDates(value){
-  var now=new Date();var y=now.getFullYear();
-  function ymd(d){var m=String(d.getMonth()+1).padStart(2,'0');var dd=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+dd;}
-  if(value==='thisYear')return {from:y+'-01-01',to:y+'-12-31'};
-  if(value==='lastYear')return {from:(y-1)+'-01-01',to:(y-1)+'-12-31'};
-  if(value==='last30')return {from:ymd(new Date(Date.now()-29*864e5)),to:ymd(now)};
-  if(value==='last90')return {from:ymd(new Date(Date.now()-89*864e5)),to:ymd(now)};
-  return null;
-}
-function applyRefreshPeriod(){
-  var sel=document.getElementById('refresh-period');if(!sel)return;
-  var custom=document.getElementById('refresh-custom-range');
-  if(sel.value==='custom'){if(custom)custom.style.display='block';refreshSummary();return;}
-  if(custom)custom.style.display='none';
-  var d=refreshPeriodToDates(sel.value);if(!d)return;
-  document.getElementById('date-from').value=d.from;
-  document.getElementById('date-to').value=d.to;
-  refreshSummary();
-}
-function onRefreshPeriodChange(){applyRefreshPeriod();}
-function refreshSummary(){
-  var s=document.getElementById('refresh-summary');if(!s)return;
-  var df=document.getElementById('date-from').value;
-  var dt=document.getElementById('date-to').value;
-  s.textContent=(df&&dt)?('Угоди в межах '+df+' — '+dt+' будуть синхронізовані з Pipedrive.'):'Оберіть діапазон.';
+// Користувач обирає один чи кілька років як мультиселект. date-from
+// стає 1 січня найранішого з обраних, date-to — 31 грудня найпізнішого.
+// Backend читає ті ж самі date-from / date-to, тож рефактор не зачіпає
+// серверну частину.
+var REFRESH_YEAR_OFFSETS=[0,-1,-2]; // current + 2 previous
+function _refreshYearsSel(){return document.querySelector('#refresh-years-mount .ssel');}
+function applyRefreshYears(){
+  var sel=_refreshYearsSel();if(!sel||!sel.getValue)return;
+  var raw=sel.getValue();
+  var vals=(Array.isArray(raw)?raw:[]).map(Number).filter(function(n){return n>0;}).sort(function(a,b){return a-b;});
+  var s=document.getElementById('refresh-summary');
+  if(!vals.length){
+    document.getElementById('date-from').value='';
+    document.getElementById('date-to').value='';
+    if(s)s.textContent='Оберіть хоча б один рік.';
+    return;
+  }
+  var df=vals[0]+'-01-01', dt=vals[vals.length-1]+'-12-31';
+  document.getElementById('date-from').value=df;
+  document.getElementById('date-to').value=dt;
+  if(s)s.textContent='Угоди в межах '+df+' — '+dt+' будуть синхронізовані з Pipedrive.';
 }
 function openRefreshModal(){
-  applyRefreshPeriod();
+  var mount=document.getElementById('refresh-years-mount');if(!mount)return;
+  mount.innerHTML='';
+  var nowY=new Date().getFullYear();
+  var years=REFRESH_YEAR_OFFSETS.map(function(o){return nowY+o;}).sort(function(a,b){return b-a;});
+  // Дефолт — поточний рік. Зберегти попередній вибір (якщо модалку
+  // відкривають повторно): беремо з date-from / date-to роки в діапазоні.
+  var df=document.getElementById('date-from').value;
+  var dt=document.getElementById('date-to').value;
+  var preselect=[];
+  if(df&&dt){
+    var fy=parseInt(df.substring(0,4),10),ty=parseInt(dt.substring(0,4),10);
+    for(var yr=fy;yr<=ty;yr++)if(years.indexOf(yr)>=0)preselect.push(yr);
+  }
+  if(!preselect.length)preselect=[nowY];
+  var sel=buildSSel({
+    multi:true,
+    placeholder:'— Оберіть рік(и) —',
+    options:years.map(function(n){return {value:String(n),label:String(n)};}),
+    value:preselect.map(String).join(','),
+    onChange:applyRefreshYears
+  });
+  mount.appendChild(sel);
+  applyRefreshYears();
   document.getElementById('refresh-modal').style.display='flex';
 }
 
@@ -318,7 +332,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-04-22-tn-trim';
+var APP_VERSION='2026-04-22-refresh-years';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
