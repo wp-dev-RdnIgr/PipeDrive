@@ -332,7 +332,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-04-27-optimistic-save';
+var APP_VERSION='2026-04-27-reload-on-save';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
@@ -567,13 +567,10 @@ function savePresetChanges(){
   google.script.run.withSuccessHandler(function(r){
     btn.disabled=false;btn.textContent='Зберегти зміни';
     if(r&&r.error){toast(r.error,'error');return;}
-    // Keep the in-memory preset + session cache aligned with what we just
-    // wrote: switching away and back must not restore stale legacy filters.
-    p.filters=filters;p.unified=true;p.andConditions=[];p.orConditions=[];p.sheetFilters=null;
-    if(reportStates[p.id])reportStates[p.id].filters=filters;
-    snapshotFilters();
-    refreshPresetsFromDB();
+    // Перезавантажуємо сторінку після збереження — щоб sidebar
+    // та активний пресет однозначно відображали свіжі дані з БД.
     toast('Звіт збережено','success');
+    setTimeout(function(){location.reload();},700);
   }).withFailureHandler(function(e){
     btn.disabled=false;btn.textContent='Зберегти зміни';toast(e.message||String(e),'error');
   }).saveCustomPreset(payload);
@@ -630,17 +627,13 @@ function savePresetFromEditor(){
       reportStates[id]=reportStates[_editingPresetId];delete reportStates[_editingPresetId];
       presets=presets.filter(function(p){return p.id!==_editingPresetId;});
     }
-    // Optimistic add: одразу заносимо новий пресет у presets[], щоб
-    // сайдбар показав його миттєво, не очікуючи на refresh з БД (який
-    // міг тихо впасти, через що раніше пресет з'являвся в БД, але не
-    // у списку). DB-refresh запускається паралельно і узгодить дані.
-    var optimistic={id:id,name:name,icon:icon||name.substring(0,2).toUpperCase(),description:desc,
-      isBuiltin:false,unified:true,enhanced:false,filters:filters,
-      andConditions:[],orConditions:[],sheetFilters:null,funnelStages:null,columns:null};
-    presets=presets.filter(function(p){return p.id!==id;}).concat([optimistic]);
-    refreshPresetsFromDB();
-    _activePresetId=id;setHash('report/'+id);renderPresetList();updateReportHeader();
+    // Жорстко перезавантажуємо сторінку після збереження: на старті
+    // ініціалізація сама підтягне свіжий список пресетів із БД і
+    // встановить активним щойно створений пресет. Хешем зберігаємо
+    // вибір — після reload routeFromHash відкриє саме його.
+    setHash('report/'+id);
     toast(isDraft?'Звіт створено':'Звіт оновлено','success');
+    setTimeout(function(){location.reload();},700);
   }).withFailureHandler(function(e){
     btn.disabled=false;btn.textContent='Зберегти';err.textContent=e.message||String(e);
   }).saveCustomPreset(payload);
