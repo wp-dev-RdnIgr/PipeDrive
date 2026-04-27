@@ -408,7 +408,12 @@ function saveCustomPreset(preset) {
 function deleteCustomPreset(id) {
   try {
     if (!id) return {error: 'id обовʼязковий'};
-    dbExec("DELETE FROM pipedrive.report_presets WHERE id = '" + sqlEscape(id) + "' AND is_builtin = false");
+    var sql = "DELETE FROM pipedrive.report_presets WHERE id = '" + sqlEscape(id) + "' AND is_builtin = false RETURNING id";
+    var resp = dbExec(sql);
+    if (resp && resp.error) return {error: 'DB: ' + resp.error};
+    if (Array.isArray(resp) && resp[0] && resp[0].error) return {error: 'DB: ' + resp[0].error};
+    var row = Array.isArray(resp) ? resp[0] : resp;
+    if (!row || !row.id) return {error: 'Пресет не знайдено або це вбудований звіт'};
     return {ok: true};
   } catch (e) { return {error: e.message || String(e)}; }
 }
