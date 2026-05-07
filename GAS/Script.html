@@ -332,7 +332,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-04-27-delete-fix';
+var APP_VERSION='2026-05-07-cell-copy';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
@@ -1550,18 +1550,49 @@ function renderCell(c,d){
   if(c.date)return '<td'+style+'>'+formatDate(v)+'</td>';
   if(c.lookup){
     var label=lookupValue(c.lookup,v);
-    return '<td'+style+(c.truncate?' class="cell-trunc" title="'+escAttr(label)+'"':'')+'>'+esc(String(label))+'</td>';
+    if(c.truncate){
+      var lid='c_'+(_cellId++);_cellData[lid]=String(label);_cellData[lid+'_t']=c.label;
+      return '<td'+style+' class="cell-trunc cell-clickable" title="'+escAttr(label)+'" onclick="showCellText(\''+lid+'\')">'+esc(String(label))+'</td>';
+    }
+    return '<td'+style+'>'+esc(String(label))+'</td>';
   }
   if(c.badge)return '<td><span class="status-badge status-'+v+'">'+statusLabel(v)+'</span></td>';
   if(c.link&&v)return '<td'+style+' class="cell-link"><a href="'+escAttr(v)+'" target="_blank">Відкрити</a></td>';
   var txt=String(v==null?'':v);
   if(!txt)return '<td'+style+'><span class="cell-empty">—</span></td>';
-  return '<td'+style+(c.truncate?' class="cell-trunc" title="'+escAttr(txt)+'"':'')+'>'+esc(txt)+'</td>';
+  if(c.truncate){
+    // Truncate-комірки тепер клікабельні: відкривається попап із повним
+    // текстом і кнопкою «Копіювати» — інакше довгі значення (UTM,
+    // сайт-сторінки, etc.) не побачити і не скопіювати з таблиці.
+    var tid='c_'+(_cellId++);_cellData[tid]=txt;_cellData[tid+'_t']=c.label;
+    return '<td'+style+' class="cell-trunc cell-clickable" title="'+escAttr(txt)+'" onclick="showCellText(\''+tid+'\')">'+esc(txt)+'</td>';
+  }
+  return '<td'+style+'>'+esc(txt)+'</td>';
 }
+var _cellTextActiveId=null;
 function showCellText(id){
+  _cellTextActiveId=id;
   document.getElementById('cell-text-title').textContent=_cellData[id+'_t']||'Текст';
   document.getElementById('cell-text-body').textContent=_cellData[id]||'';
+  var btn=document.getElementById('cell-text-copy');if(btn)btn.textContent='Копіювати';
   document.getElementById('cell-text-modal').style.display='flex';
+}
+function copyCellText(){
+  if(!_cellTextActiveId)return;
+  var txt=_cellData[_cellTextActiveId]||'';
+  var btn=document.getElementById('cell-text-copy');
+  function done(ok){if(btn){btn.textContent=ok?'Скопійовано ✓':'Помилка';setTimeout(function(){btn.textContent='Копіювати';},1500);}}
+  // navigator.clipboard може бути недоступний в iframe-сендбоксі
+  // Apps Script — fallback на текстове-поле з execCommand('copy').
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(function(){done(true);},function(){done(false);});
+    return;
+  }
+  try{
+    var ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.left='-9999px';
+    document.body.appendChild(ta);ta.select();
+    var ok=document.execCommand('copy');document.body.removeChild(ta);done(ok);
+  }catch(e){done(false);}
 }
 function fillTableBody(deals){
   var cols=getActiveCols();
