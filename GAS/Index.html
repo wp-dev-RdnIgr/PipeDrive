@@ -130,7 +130,10 @@
     <div class="modal-content" style="max-width:640px;text-align:left">
       <h2 id="cell-text-title" style="margin-bottom:12px"></h2>
       <div id="cell-text-body" style="max-height:420px;overflow-y:auto;margin:12px 0;padding:14px 16px;background:var(--gray-50);border-radius:8px;border:1px solid var(--gray-100);font-size:13px;line-height:1.6;white-space:pre-wrap;color:var(--gray-800)"></div>
-      <div style="display:flex;justify-content:flex-end"><button class="primary" onclick="document.getElementById('cell-text-modal').style.display='none'">Закрити</button></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="ghost" id="cell-text-copy" onclick="copyCellText()">Копіювати</button>
+        <button class="primary" onclick="document.getElementById('cell-text-modal').style.display='none'">Закрити</button>
+      </div>
     </div>
   </div>
 
