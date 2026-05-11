@@ -332,7 +332,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-05-07-cell-copy';
+var APP_VERSION='2026-05-07-op-all';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
@@ -832,8 +832,16 @@ function onFieldChange(row,fs,os,vc){
   var fid=parseInt(fs.value);var field=fields.find(function(f){return f.field_id===fid;});
   os.innerHTML='';os.disabled=false;vc.innerHTML='';
   if(!field){os.disabled=true;return;}
+  // 'ALL' — універсальний оператор «без фільтра по цьому полю». Включає
+  // null/порожні. У collectConditions він пропускається, тож рядок
+  // лишається в UI як placeholder, але до SQL не доходить.
+  var allOpt=document.createElement('option');allOpt.value='ALL';allOpt.textContent=opLabels['ALL']||'Всі';os.appendChild(allOpt);
   field.operators.forEach(function(op){var o=document.createElement('option');o.value=op;o.textContent=opLabels[op]||op;os.appendChild(o);});
   os.onchange=function(){renderValue(field,os.value,vc);};
+  // Дефолтний оператор лишається перший із Config.gs (= /  >= тощо), а
+  // не 'ALL' — користувач має сам вибрати «Всі», коли хоче відключити
+  // фільтр для цього поля.
+  os.value=field.operators[0];
   renderValue(field,field.operators[0],vc);
 }
 // ===== DATE PRESETS =====
@@ -869,7 +877,8 @@ function datePresets(){
 
 function renderValue(field,op,vc){
   vc.innerHTML='';
-  if(op==='IS NULL'||op==='IS NOT NULL')return;
+  // 'ALL' / IS NULL / IS NOT NULL — value widget не потрібен.
+  if(op==='ALL'||op==='IS NULL'||op==='IS NOT NULL')return;
 
   // ---- DATE: preset select + two date inputs ----
   if(field.type==='date'){
@@ -949,6 +958,10 @@ function collectConditions(){
     var fs=rows[i].querySelector('.field-select');if(!fs)continue;
     var os=rows[i].querySelector('.operator-select');if(!fs.value)continue;
     var fid=parseInt(fs.value);var op=os.value;var field=fields.find(function(f){return f.field_id===fid;});
+    // 'ALL' — фільтр не застосовується по цьому полю; рядок просто
+    // ігнорується. Дозволяє користувачу залишити поле в UI як
+    // placeholder, не передаючи умову у SQL.
+    if(op==='ALL')continue;
     if(op==='IS NULL'||op==='IS NOT NULL'){conds.push({field_id:fid,operator:op,value:'',extra_value:null});continue;}
     if(field&&field.type==='date'){
       var d1=rows[i].querySelector('.date-from');var d2=rows[i].querySelector('.date-to');
