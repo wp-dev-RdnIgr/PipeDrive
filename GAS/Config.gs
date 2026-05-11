@@ -80,7 +80,7 @@ var USERS = [
   {id:15621866,name:'Віталій Диблюк',active:false}
 ];
 
-var OPERATORS_LABELS = {'=':'дорівнює','!=':'не дорівнює','>':'більше','<':'менше','>=':'від (включно)','<=':'до (включно)','LIKE':'містить','IS NULL':'порожнє','IS NOT NULL':'не порожнє','IN':'один із'};
+var OPERATORS_LABELS = {'=':'дорівнює','!=':'не дорівнює','>':'більше','<':'менше','>=':'від (включно)','<=':'до (включно)','LIKE':'містить','IS NULL':'порожнє','IS NOT NULL':'не порожнє','IN':'один із','ALL':'Всі'};
 
 function getFieldsConfig(){return FIELDS;}
 function getPipelinesConfig(){return PIPELINES;}
