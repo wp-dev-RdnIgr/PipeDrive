@@ -180,26 +180,60 @@ function getProductNames() {
 
 function refreshAllData(dateFrom, dateTo) {
   try {
-    var start = Date.now();
+    var ENTITIES = ['deals','persons','organizations','activities','products','notes','deal_products'];
+    // Snapshot pre-sync MAX(synced_at) per table — інакше нам нема як
+    // відрізнити «sync щойно записав» від «sync ще йде». Pollимо саме
+    // зрушення цих timestamp-ів.
+    var pre = {};
+    var preRows = dbQueryRows(
+      "SELECT 'deals' AS entity, MAX(synced_at) AS ts FROM pipedrive.deals" +
+      " UNION ALL SELECT 'persons', MAX(synced_at) FROM pipedrive.persons" +
+      " UNION ALL SELECT 'organizations', MAX(synced_at) FROM pipedrive.organizations" +
+      " UNION ALL SELECT 'activities', MAX(synced_at) FROM pipedrive.activities" +
+      " UNION ALL SELECT 'products', MAX(synced_at) FROM pipedrive.products" +
+      " UNION ALL SELECT 'notes', MAX(synced_at) FROM pipedrive.notes" +
+      " UNION ALL SELECT 'deal_products', MAX(synced_at) FROM pipedrive.deal_products"
+    );
+    preRows.forEach(function(r){ pre[r.entity] = r.ts || ''; });
+
+    var startMs = Date.now();
     var opts = {method:'post', contentType:'application/json', muteHttpExceptions:true,
       payload:JSON.stringify({entity:'all', dateFrom:dateFrom, dateTo:dateTo})};
     UrlFetchApp.fetch(N8N_SYNC, opts);
-    var elapsed = Math.round((Date.now() - start) / 1000);
-    // n8n sync webhook replies with a Telegram API response rather than
-    // structured sync stats, so we read authoritative counts from the DB.
-    var rows = dbQueryRows(
-      "SELECT 'deals' AS entity, COUNT(*)::bigint AS total FROM pipedrive.deals WHERE add_time >= '" + dateFrom + "' AND add_time < ('" + dateTo + "'::date + INTERVAL '1 day')" +
-      " UNION ALL SELECT 'persons', COUNT(*) FROM pipedrive.persons" +
-      " UNION ALL SELECT 'organizations', COUNT(*) FROM pipedrive.organizations" +
-      " UNION ALL SELECT 'activities', COUNT(*) FROM pipedrive.activities" +
-      " UNION ALL SELECT 'products', COUNT(*) FROM pipedrive.products" +
-      " UNION ALL SELECT 'notes', COUNT(*) FROM pipedrive.notes"
-    );
-    var order = {deals:1, persons:2, organizations:3, activities:4, products:5, notes:6};
-    rows.sort(function(a,b){return (order[a.entity]||99)-(order[b.entity]||99);});
-    var results = rows.map(function(r){
-      var n = Number(r.total) || 0;
-      return {entity:r.entity, total:n, inserted:n, errors:0, elapsed:0};
+
+    // n8n webhook повертає миттєво через Respond Now (~0.5с). Реальний
+    // sync крутиться у фоні. Polling synced_at до тих пір, доки кожна
+    // з 7 таблиць не отримає новий timestamp. Жорсткий ліміт — 5хв.
+    var MAX_WAIT_MS = 5 * 60 * 1000;
+    var POLL_INTERVAL_MS = 5000;
+    var deadline = startMs + MAX_WAIT_MS;
+    var statusSql =
+      "SELECT 'deals' AS entity, MAX(synced_at) AS ts, COUNT(*) AS n FROM pipedrive.deals" +
+      " UNION ALL SELECT 'persons', MAX(synced_at), COUNT(*) FROM pipedrive.persons" +
+      " UNION ALL SELECT 'organizations', MAX(synced_at), COUNT(*) FROM pipedrive.organizations" +
+      " UNION ALL SELECT 'activities', MAX(synced_at), COUNT(*) FROM pipedrive.activities" +
+      " UNION ALL SELECT 'products', MAX(synced_at), COUNT(*) FROM pipedrive.products" +
+      " UNION ALL SELECT 'notes', MAX(synced_at), COUNT(*) FROM pipedrive.notes" +
+      " UNION ALL SELECT 'deal_products', MAX(synced_at), COUNT(*) FROM pipedrive.deal_products";
+    var last = [];
+    while (Date.now() < deadline) {
+      Utilities.sleep(POLL_INTERVAL_MS);
+      last = dbQueryRows(statusSql);
+      var done = ENTITIES.every(function(e){
+        var row = last.filter(function(x){return x.entity===e;})[0];
+        if (!row || !row.ts) return false;
+        return String(row.ts) > String(pre[e] || '');
+      });
+      if (done) break;
+    }
+    var elapsed = Math.round((Date.now() - startMs) / 1000);
+
+    var order = {deals:1, persons:2, organizations:3, activities:4, products:5, notes:6, deal_products:7};
+    last.sort(function(a,b){return (order[a.entity]||99)-(order[b.entity]||99);});
+    var results = last.map(function(r){
+      var n = Number(r.n) || 0;
+      var moved = r.ts && String(r.ts) > String(pre[r.entity] || '');
+      return {entity:r.entity, total:n, inserted:n, errors: moved ? 0 : 1, elapsed:0};
     });
     if (results.length) results[0].elapsed = elapsed;
     return {results: results};

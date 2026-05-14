@@ -332,7 +332,7 @@ function closeSyncModal(){document.getElementById('sync-modal').style.display='n
 // ===== PRESETS =====
 var _activePresetId=null;
 
-var APP_VERSION='2026-05-07-op-all';
+var APP_VERSION='2026-05-14-sync-poll';
 function refreshPresetsFromDB(done){
   google.script.run.withSuccessHandler(function(list){
     console.log('[PRESETS] listCustomPresets returned',(list||[]).length,'rows');
